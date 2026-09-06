@@ -1,0 +1,16 @@
+# Global owners for the entire repository
+*       @SeniorInsight/core-maintainers
+
+# Backend and database configurations
+/backend/ @SeniorInsight/backend-team
+/db/      @SeniorInsight/dba-team
+
+# Mobile applications (Android/iOS/React Native)
+/mobile/  @SeniorInsight/mobile-team
+
+# Web portals and frontend interfaces
+/frontend/ @SeniorInsight/frontend-team
+
+# Infrastructure, Docker, and CI/CD pipelines
+/infra/   @SeniorInsight/devops-team
+/.github/workflows/ @SeniorInsight/devops-team
