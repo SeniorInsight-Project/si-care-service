@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.seniorinsight.backendcore.BackendCoreApplicationTests
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.566 s -- in com.seniorinsight.backendcore.BackendCoreApplicationTests
