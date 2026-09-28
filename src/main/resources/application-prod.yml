@@ -24,8 +24,9 @@ spring:
 
   data:
     redis:
-      # No Heroku (Heroku Data for Redis ou add-on Redis Cloud), a URL completa é injetada via REDIS_URL ou REDIS_TLS_URL
-      url: ${REDIS_URL:${REDIS_TLS_URL:}}
+      # No Heroku, a URL de conexão é injetada via REDIS_URL (ou REDIS_TLS_URL).
+      # Fallback seguro para redis://localhost:6379 para evitar quebra caso o add-on ainda não tenha sido adicionado:
+      url: ${REDIS_URL:${REDIS_TLS_URL:redis://localhost:6379}}
 
 # Trata terminação SSL e proxy reverso no Heroku (X-Forwarded-Proto / X-Forwarded-For)
 server:
