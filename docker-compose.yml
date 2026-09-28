@@ -11,6 +11,27 @@ services:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-seniorinsight} -d ${DB_NAME:-seniorinsight}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: seniorinsight-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
 
   backend-core:
     build:
@@ -19,16 +40,31 @@ services:
     container_name: seniorinsight-backend-core
     restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      SERVER_PORT: 8080
       DB_HOST: postgres
       DB_PORT: 5432
       DB_NAME: ${DB_NAME:-seniorinsight}
       DB_USERNAME: ${DB_USERNAME:-seniorinsight}
       DB_PASSWORD: ${DB_PASSWORD:-seniorinsight}
-      SERVER_PORT: 8080
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      GOOGLE_CLIENT_ID_LOCAL: ${GOOGLE_CLIENT_ID_LOCAL:-}
+      GOOGLE_CLIENT_SECRET_LOCAL: ${GOOGLE_CLIENT_SECRET_LOCAL:-}
+      LLM_OPENAI_BASE_URL: ${LLM_OPENAI_BASE_URL:-https://api.openai.com}
+      LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY:-}
+      LLM_ANTHROPIC_BASE_URL: ${LLM_ANTHROPIC_BASE_URL:-https://api.anthropic.com}
+      LLM_ANTHROPIC_API_KEY: ${LLM_ANTHROPIC_API_KEY:-}
+      LLM_GOOGLE_BASE_URL: ${LLM_GOOGLE_BASE_URL:-https://generativelanguage.googleapis.com}
+      LLM_GOOGLE_API_KEY: ${LLM_GOOGLE_API_KEY:-}
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT:-8080}:8080"
 
 volumes:
   postgres_data:
+  redis_data:
