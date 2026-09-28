@@ -5,7 +5,7 @@ spring:
 
   datasource:
     # No Heroku, o buildpack Java adapta a DATABASE_URL para o formato JDBC na variável JDBC_DATABASE_URL.
-    # Usamos uma cadeia de fallback para compatibilidade total (JDBC_DATABASE_URL -> SPRING_DATASOURCE_URL -> DATABASE_URL).
+    # Fallback em cadeia: JDBC_DATABASE_URL -> SPRING_DATASOURCE_URL -> DATABASE_URL
     url: ${JDBC_DATABASE_URL:${SPRING_DATASOURCE_URL:${DATABASE_URL}}}
     username: ${JDBC_DATABASE_USERNAME:}
     password: ${JDBC_DATABASE_PASSWORD:}
@@ -31,8 +31,27 @@ spring:
 # Trata terminação SSL e proxy reverso no Heroku (X-Forwarded-Proto / X-Forwarded-For)
 server:
   forward-headers-strategy: native
+  error:
+    whitelabel:
+      enabled: false
+    include-stacktrace: never
+    include-message: never
+    include-binding-errors: never
 
-# Configuração direta das credenciais do Google para Produção (Heroku)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+  health:
+    redis:
+      # Não derruba o health check caso o add-on do Redis ainda não tenha sido provisionado no Heroku
+      enabled: false
+
+# Configuração das credenciais do Google para Produção (Heroku)
 google:
   client-id: ${GOOGLE_CLIENT_ID_PROD:}
   client-secret: ${GOOGLE_CLIENT_SECRET_PROD:}
