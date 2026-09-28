@@ -5,14 +5,22 @@ import java.util.Map;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/v1")
 public class HealthController {
 
-    @GetMapping("/health")
+    @GetMapping("/")
+    public ResponseEntity<Map<String, Object>> root() {
+        return ResponseEntity.ok(Map.of(
+                "service", "SeniorInsight Backend Core",
+                "status", "ONLINE",
+                "version", "0.0.1-SNAPSHOT",
+                "healthCheck", "/api/v1/health"
+        ));
+    }
+
+    @GetMapping("/api/v1/health")
     public ResponseEntity<Map<String, Object>> health() {
         return ResponseEntity.ok(Map.of(
                 "service", "backend-core",
