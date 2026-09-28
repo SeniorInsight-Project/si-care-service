@@ -1,0 +1,46 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    # No Heroku, o buildpack Java adapta a DATABASE_URL para o formato JDBC na variável JDBC_DATABASE_URL.
+    # Usamos uma cadeia de fallback para compatibilidade total (JDBC_DATABASE_URL -> SPRING_DATASOURCE_URL -> DATABASE_URL).
+    url: ${JDBC_DATABASE_URL:${SPRING_DATASOURCE_URL:${DATABASE_URL}}}
+    username: ${JDBC_DATABASE_USERNAME:}
+    password: ${JDBC_DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  data:
+    redis:
+      # No Heroku (Heroku Data for Redis ou add-on Redis Cloud), a URL completa é injetada via REDIS_URL ou REDIS_TLS_URL
+      url: ${REDIS_URL:${REDIS_TLS_URL:}}
+
+# Trata terminação SSL e proxy reverso no Heroku (X-Forwarded-Proto / X-Forwarded-For)
+server:
+  forward-headers-strategy: native
+
+# Configuração direta das credenciais do Google para Produção (Heroku)
+google:
+  client-id: ${GOOGLE_CLIENT_ID_PROD}
+  client-secret: ${GOOGLE_CLIENT_SECRET_PROD:}
+
+# Mapeamento para Spring Security OAuth2 (se utilizado na aplicação)
+spring.security:
+  oauth2:
+    client:
+      registration:
+        google:
+          client-id: ${GOOGLE_CLIENT_ID_PROD}
+          client-secret: ${GOOGLE_CLIENT_SECRET_PROD:}
