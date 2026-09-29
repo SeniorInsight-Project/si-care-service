@@ -3,6 +3,9 @@ package com.seniorinsight.backendcore;
 import java.time.Instant;
 import java.util.Map;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +25,7 @@ public class HealthController {
                 "status", "ONLINE",
                 "version", "0.0.1-SNAPSHOT",
                 "documentation", "/swagger-ui.html",
+                "testLogin", "/test-login.html",
                 "healthCheck", "/api/v1/health"
         ));
     }
@@ -34,5 +38,13 @@ public class HealthController {
                 "status", "UP",
                 "timestamp", Instant.now().toString()
         ));
+    }
+
+    @Operation(summary = "Página de Teste do SSO Google", description = "Interface web para teste de login com Google no navegador")
+    @GetMapping(value = "/test-login.html", produces = MediaType.TEXT_HTML_VALUE)
+    public ResponseEntity<Resource> testLoginHtml() {
+        return ResponseEntity.ok()
+                .contentType(MediaType.TEXT_HTML)
+                .body(new ClassPathResource("static/test-login.html"));
     }
 }
