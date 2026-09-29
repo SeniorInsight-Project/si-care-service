@@ -11,9 +11,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
@@ -32,6 +33,21 @@ management:
   endpoint:
     health:
       show-details: never
+
+# Configuração de Segurança de Tokens JWT
+api:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:4f9d2b8e7c1a5f6e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e}
+      expiration: ${JWT_EXPIRATION:86400} # 24 horas em segundos
+
+# Configuração do Swagger OpenAPI
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
 
 seniorinsight:
   integrations:
