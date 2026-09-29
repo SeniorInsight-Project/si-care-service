@@ -20,6 +20,8 @@ import com.seniorinsight.backendcore.exception.InvalidTokenException;
 import com.seniorinsight.backendcore.model.ProvedorSso;
 import com.seniorinsight.backendcore.model.StatusUsuario;
 import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.repository.FamiliarRepository;
+import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.UsuarioRepository;
 import com.seniorinsight.backendcore.security.JwtService;
 
@@ -33,14 +35,20 @@ public class GoogleAuthService {
     private static final Logger log = LoggerFactory.getLogger(GoogleAuthService.class);
 
     private final UsuarioRepository usuarioRepository;
+    private final FamiliarRepository familiarRepository;
+    private final MedicoRepository medicoRepository;
     private final JwtService jwtService;
     private final GoogleIdTokenVerifier verifier;
 
     public GoogleAuthService(
             UsuarioRepository usuarioRepository,
+            FamiliarRepository familiarRepository,
+            MedicoRepository medicoRepository,
             JwtService jwtService,
-            @Value("${google.client-id}") String googleClientId) {
+            @Value("${google.client-id:}") String googleClientId) {
         this.usuarioRepository = usuarioRepository;
+        this.familiarRepository = familiarRepository;
+        this.medicoRepository = medicoRepository;
         this.jwtService = jwtService;
         this.verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
@@ -116,7 +124,7 @@ public class GoogleAuthService {
         }
 
         String jwt = jwtService.generateToken(usuario);
-        boolean perfilCompleto = !isNewUser; // Novos usuários passam por etapa de onboarding/perfil
+        boolean perfilCompleto = familiarRepository.existsByUsuario(usuario) || medicoRepository.existsByUsuario(usuario);
 
         return new AuthResponseDTO(jwt, perfilCompleto);
     }
