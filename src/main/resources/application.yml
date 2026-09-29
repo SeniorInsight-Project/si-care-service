@@ -11,9 +11,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+  data:
+    redis:
+      repositories:
+        enabled: false
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
