@@ -59,6 +59,21 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, "Comorbidade Já Cadastrada", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(VinculoJaExistenteException.class)
+    public ResponseEntity<Map<String, Object>> handleVinculoJaExistente(VinculoJaExistenteException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Vínculo Já Existente", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteInvalidoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteInvalido(ConviteInvalidoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Convite Inválido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteExpiradoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteExpirado(ConviteExpiradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.GONE, "Convite Expirado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(PerfilNaoAutorizadoException.class)
     public ResponseEntity<Map<String, Object>> handlePerfilNaoAutorizado(PerfilNaoAutorizadoException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, "Acesso Proibido", ex.getMessage(), request.getRequestURI());
