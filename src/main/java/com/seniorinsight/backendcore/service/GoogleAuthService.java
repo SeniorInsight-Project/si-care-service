@@ -45,15 +45,22 @@ public class GoogleAuthService {
             FamiliarRepository familiarRepository,
             MedicoRepository medicoRepository,
             JwtService jwtService,
-            @Value("${google.client-id:}") String googleClientId) {
+            @Value("${google.client-id:}") String webClientId,
+            @Value("${google.android-client-id:}") String androidClientId,
+            @Value("${google.ios-client-id:}") String iosClientId) {
         this.usuarioRepository = usuarioRepository;
         this.familiarRepository = familiarRepository;
         this.medicoRepository = medicoRepository;
         this.jwtService = jwtService;
+
+        java.util.List<String> validAudiences = java.util.stream.Stream.of(webClientId, androidClientId, iosClientId)
+                .filter(id -> id != null && !id.trim().isEmpty())
+                .toList();
+
         this.verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(),
                 GsonFactory.getDefaultInstance())
-                .setAudience(Collections.singletonList(googleClientId))
+                .setAudience(validAudiences.isEmpty() ? Collections.singletonList("") : validAudiences)
                 .build();
     }
 
