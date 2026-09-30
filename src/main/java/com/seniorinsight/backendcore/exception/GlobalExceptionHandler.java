@@ -54,6 +54,61 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, "Perfil Já Existente", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(ComorbidadeJaCadastradaException.class)
+    public ResponseEntity<Map<String, Object>> handleComorbidadeJaCadastrada(ComorbidadeJaCadastradaException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Comorbidade Já Cadastrada", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(VinculoJaExistenteException.class)
+    public ResponseEntity<Map<String, Object>> handleVinculoJaExistente(VinculoJaExistenteException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Vínculo Já Existente", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteInvalidoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteInvalido(ConviteInvalidoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Convite Inválido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteExpiradoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteExpirado(ConviteExpiradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.GONE, "Convite Expirado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(PerfilNaoAutorizadoException.class)
+    public ResponseEntity<Map<String, Object>> handlePerfilNaoAutorizado(PerfilNaoAutorizadoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.FORBIDDEN, "Acesso Proibido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.FORBIDDEN, "Acesso Proibido", "Acesso não autorizado para o perfil do usuário.", request.getRequestURI());
+    }
+
+    @ExceptionHandler(IdosoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleIdosoNaoEncontrado(IdosoNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Idoso Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(RotinaMedicamentoNaoEncontradaException.class)
+    public ResponseEntity<Map<String, Object>> handleRotinaMedicamentoNaoEncontrada(RotinaMedicamentoNaoEncontradaException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Rotina de Medicamento Não Encontrada", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(MedicamentoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleMedicamentoNaoEncontrado(MedicamentoNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Medicamento Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ComorbidadeNaoEncontradaException.class)
+    public ResponseEntity<Map<String, Object>> handleComorbidadeNaoEncontrada(ComorbidadeNaoEncontradaException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Comorbidade Não Encontrada", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(AlarmeNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleAlarmeNaoEncontrado(AlarmeNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Alarme Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(RateLimitExceededException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, "Muitas Requisições", ex.getMessage(), request.getRequestURI());

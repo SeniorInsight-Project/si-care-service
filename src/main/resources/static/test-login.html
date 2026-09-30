@@ -138,6 +138,12 @@
                     <p style="margin: 8px 0; color: #1d7324;">Conta provisionada no PostgreSQL via JIT e token JWT gerado pelo SeniorInsight:</p>
                     <pre>${JSON.stringify(data, null, 2)}</pre>
                 `;
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectScheme = urlParams.get('redirect_uri');
+                if (redirectScheme) {
+                    window.location.href = `${redirectScheme}?token=${data.accessToken}`;
+                }
             } else {
                 resultDiv.className = 'result-box result-error';
                 resultDiv.innerHTML = `
