@@ -104,6 +104,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Comorbidade Não Encontrada", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(AlarmeNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleAlarmeNaoEncontrado(AlarmeNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Alarme Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(RateLimitExceededException.class)
     public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(RateLimitExceededException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, "Muitas Requisições", ex.getMessage(), request.getRequestURI());
