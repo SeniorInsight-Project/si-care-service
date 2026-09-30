@@ -3,13 +3,19 @@ package com.seniorinsight.backendcore.model;
 import java.time.Instant;
 import java.util.UUID;
 
+import com.seniorinsight.backendcore.domain.Familiar;
+import com.seniorinsight.backendcore.domain.Medico;
+
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -54,6 +60,12 @@ public class Usuario {
 
     @Column(name = "atualizado_em", nullable = false)
     private Instant atualizadoEm;
+
+    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Familiar familiar;
+
+    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Medico medico;
 
     public Usuario() {
     }
@@ -173,6 +185,22 @@ public class Usuario {
 
     public void setAtualizadoEm(Instant atualizadoEm) {
         this.atualizadoEm = atualizadoEm;
+    }
+
+    public Familiar getFamiliar() {
+        return familiar;
+    }
+
+    public void setFamiliar(Familiar familiar) {
+        this.familiar = familiar;
+    }
+
+    public Medico getMedico() {
+        return medico;
+    }
+
+    public void setMedico(Medico medico) {
+        this.medico = medico;
     }
 
     // --- Builder Pattern ---
