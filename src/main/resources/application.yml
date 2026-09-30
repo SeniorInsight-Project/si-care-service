@@ -68,3 +68,8 @@ seniorinsight:
       google:
         base-url: ${LLM_GOOGLE_BASE_URL:https://generativelanguage.googleapis.com}
         api-key: ${LLM_GOOGLE_API_KEY:}
+    openwearables:
+      enabled: ${OPENWEARABLES_ENABLED:false}
+      base-url: ${OPENWEARABLES_BASE_URL:https://api.openwearables.io}
+      api-key: ${OPENWEARABLES_API_KEY:}
+      timeout-seconds: ${OPENWEARABLES_TIMEOUT_SECONDS:5}
