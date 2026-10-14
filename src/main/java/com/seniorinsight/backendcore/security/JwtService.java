@@ -19,13 +19,18 @@ import com.seniorinsight.backendcore.model.Usuario;
 public class JwtService {
 
     private static final String ISSUER = "seniorinsight-api";
+    private static final int TAMANHO_MINIMO_SEGREDO = 32;
 
     private final String secret;
     private final long expirationSeconds;
 
     public JwtService(
-            @Value("${api.security.jwt.secret:4f9d2b8e7c1a5f6e3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b2a1f0e}") String secret,
+            @Value("${api.security.jwt.secret:}") String secret,
             @Value("${api.security.jwt.expiration:86400}") long expirationSeconds) {
+        if (secret == null || secret.isBlank() || secret.length() < TAMANHO_MINIMO_SEGREDO) {
+            throw new IllegalStateException("JWT_SECRET não definido ou com menos de "
+                    + TAMANHO_MINIMO_SEGREDO + " caracteres. Gere um valor com: openssl rand -hex 32");
+        }
         this.secret = secret;
         this.expirationSeconds = expirationSeconds;
     }
