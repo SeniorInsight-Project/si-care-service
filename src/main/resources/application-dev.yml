@@ -37,3 +37,9 @@ spring.security:
         google:
           client-id: ${GOOGLE_CLIENT_ID_LOCAL:}
           client-secret: ${GOOGLE_CLIENT_SECRET_LOCAL:}
+
+# Simulações de e-mail e de SOS com o conteúdo completo (dados pessoais): só no perfil dev.
+logging:
+  level:
+    com.seniorinsight.backendcore.service.SimuladorEmailService: DEBUG
+    com.seniorinsight.backendcore.listener.SosEventListener: DEBUG

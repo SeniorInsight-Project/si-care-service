@@ -27,6 +27,7 @@ import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.UsuarioRepository;
 import com.seniorinsight.backendcore.security.JwtService;
+import com.seniorinsight.backendcore.security.Mascara;
 import com.seniorinsight.backendcore.security.RateLimiterService;
 
 /**
@@ -73,30 +74,30 @@ public class AuthService {
 
         // Rate limiting defensivo contra ataques de força bruta
         if (!rateLimiterService.tryAcquire("login:" + email, 5, 60)) {
-            log.warn("Limite de tentativas de login excedido para o e-mail: {}", email);
+            log.warn("Limite de tentativas de login excedido para o e-mail: {}", Mascara.email(email));
             throw new RateLimitExceededException("Muitas tentativas de login consecutivas. Por favor, aguarde um minuto.");
         }
 
         Usuario usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("Tentativa de login para e-mail não cadastrado: {}", email);
+                    log.warn("Tentativa de login para e-mail não cadastrado: {}", Mascara.email(email));
                     return new CredenciaisInvalidasException("E-mail ou senha inválidos.");
                 });
 
         if (usuario.getSenhaHash() == null || !passwordEncoder.matches(request.senha(), usuario.getSenhaHash())) {
-            log.warn("Falha de autenticação (senha incorreta) para o usuário: {}", email);
+            log.warn("Falha de autenticação (senha incorreta) para o usuário: {}", Mascara.email(email));
             throw new CredenciaisInvalidasException("E-mail ou senha inválidos.");
         }
 
         if (usuario.getStatus() != StatusUsuario.ATIVO) {
-            log.warn("Tentativa de login de usuário inativo ou bloqueado: {}", email);
+            log.warn("Tentativa de login de usuário inativo ou bloqueado: {}", Mascara.email(email));
             throw new CredenciaisInvalidasException("Conta inativa ou bloqueada. Entre em contato com o suporte.");
         }
 
         boolean perfilCompleto = familiarRepository.existsByUsuario(usuario) || medicoRepository.existsByUsuario(usuario);
         String jwt = jwtService.generateToken(usuario);
 
-        log.info("Usuário autenticado com sucesso via login tradicional: {}", email);
+        log.info("Usuário autenticado com sucesso via login tradicional: {}", Mascara.email(email));
         return new AuthResponseDTO(jwt, perfilCompleto);
     }
 
@@ -117,7 +118,7 @@ public class AuthService {
         }
 
         if (usuarioRepository.existsByEmail(email)) {
-            log.warn("Tentativa de cadastro com e-mail já existente: {}", email);
+            log.warn("Tentativa de cadastro com e-mail já existente: {}", Mascara.email(email));
             throw new EmailJaCadastradoException("O e-mail '" + email + "' já está cadastrado.");
         }
 
@@ -126,7 +127,7 @@ public class AuthService {
                 throw new IllegalArgumentException("O CPF é obrigatório para cadastro de Familiar.");
             }
             if (familiarRepository.existsByCpf(cpf)) {
-                log.warn("Tentativa de cadastro de Familiar com CPF duplicado: {}", cpf);
+                log.warn("Tentativa de cadastro de Familiar com CPF duplicado.");
                 throw new CpfJaCadastradoException("O CPF informado já está cadastrado.");
             }
         } else {
@@ -139,7 +140,7 @@ public class AuthService {
             }
             String crm = request.crm().trim();
             if (medicoRepository.existsByCrm(crm)) {
-                log.warn("Tentativa de cadastro de Médico com CRM duplicado: {}", crm);
+                log.warn("Tentativa de cadastro de Médico com CRM duplicado.");
                 throw new CrmJaCadastradoException("O CRM informado já está cadastrado.");
             }
         }
@@ -164,7 +165,7 @@ public class AuthService {
                     .telefone(request.telefone() != null ? request.telefone().trim() : null)
                     .build();
             familiarRepository.save(familiar);
-            log.info("Perfil de Familiar cadastrado com sucesso para o usuário: {}", email);
+            log.info("Perfil de Familiar cadastrado com sucesso para o usuário: {}", Mascara.email(email));
         } else {
             Medico medico = Medico.builder()
                     .usuario(novoUsuario)
@@ -174,7 +175,7 @@ public class AuthService {
                     .telefoneConsultorio(request.telefone() != null ? request.telefone().trim() : null)
                     .build();
             medicoRepository.save(medico);
-            log.info("Perfil de Médico cadastrado com sucesso para o usuário: {}", email);
+            log.info("Perfil de Médico cadastrado com sucesso para o usuário: {}", Mascara.email(email));
         }
 
         String jwt = jwtService.generateToken(novoUsuario);
@@ -194,7 +195,7 @@ public class AuthService {
         Usuario usuario = resolveUsuarioAutenticado(usuarioAutenticado);
 
         if (familiarRepository.existsByUsuario(usuario) || medicoRepository.existsByUsuario(usuario)) {
-            log.warn("Usuário {} tentou completar perfil que já existe", usuario.getEmail());
+            log.warn("Usuário {} tentou completar perfil que já existe", usuario.getId());
             throw new PerfilJaExistenteException("O perfil deste usuário já foi preenchido anteriormente.");
         }
 
@@ -210,7 +211,7 @@ public class AuthService {
                 throw new IllegalArgumentException("O CPF é obrigatório para perfil de Familiar.");
             }
             if (familiarRepository.existsByCpf(cpf)) {
-                log.warn("Tentativa de completar perfil Familiar com CPF duplicado: {}", cpf);
+                log.warn("Tentativa de completar perfil Familiar com CPF duplicado.");
                 throw new CpfJaCadastradoException("O CPF informado já está cadastrado.");
             }
 
@@ -221,7 +222,7 @@ public class AuthService {
                     .telefone(request.telefone() != null ? request.telefone().trim() : null)
                     .build();
             familiarRepository.save(familiar);
-            log.info("Perfil de Familiar completado via SSO para o usuário: {}", usuario.getEmail());
+            log.info("Perfil de Familiar completado via SSO para o usuário: {}", usuario.getId());
         } else {
             // MEDICO
             if (request.crm() == null || request.crm().isBlank()) {
@@ -232,7 +233,7 @@ public class AuthService {
             }
             String crm = request.crm().trim();
             if (medicoRepository.existsByCrm(crm)) {
-                log.warn("Tentativa de completar perfil Médico com CRM duplicado: {}", crm);
+                log.warn("Tentativa de completar perfil Médico com CRM duplicado.");
                 throw new CrmJaCadastradoException("O CRM informado já está cadastrado.");
             }
 
@@ -244,7 +245,7 @@ public class AuthService {
                     .telefoneConsultorio(request.telefone() != null ? request.telefone().trim() : null)
                     .build();
             medicoRepository.save(medico);
-            log.info("Perfil de Médico completado via SSO para o usuário: {}", usuario.getEmail());
+            log.info("Perfil de Médico completado via SSO para o usuário: {}", usuario.getId());
         }
 
         String jwt = jwtService.generateToken(usuario);
