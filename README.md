@@ -68,7 +68,7 @@ Antes de iniciar qualquer um dos modos, copie o template de variáveis de ambien
 cp template.env .env
 ```
 
-*(O `docker-compose.yml` e o perfil `dev` já possuem valores padrão para todas as variáveis, funcionando direto da caixa).*
+Depois preencha o `JWT_SECRET` no `.env` com um valor gerado por `openssl rand -hex 32`. Ele não tem valor padrão: sem ele o serviço não sobe. *(Banco e Redis já têm valores padrão para desenvolvimento local.)*
 
 ---
 
@@ -163,6 +163,7 @@ O projeto conta com três perfis principais do Spring:
 ### Config Vars no Heroku (Cadastradas no Painel)
 ```bash
 SPRING_PROFILES_ACTIVE=prod
+JWT_SECRET=valor-gerado-com-openssl-rand-hex-32
 GOOGLE_CLIENT_ID_PROD=seu-client-id-prod.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET_PROD=seu-client-secret-prod
 ```

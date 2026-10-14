@@ -350,7 +350,7 @@ public class RotinaMedicamentoService {
         }
 
         RotinaMedicamento atualizada = rotinaMedicamentoRepository.save(rotina);
-        log.info("Rotina {} atualizada com sucesso pelo usuário {}", rotinaId, usuario.getEmail());
+        log.info("Rotina {} atualizada com sucesso pelo usuário {}", rotinaId, usuario.getId());
 
         return mapearParaResponseDTO(atualizada, LocalDate.now(FUSO_HORARIO_PADRAO));
     }
@@ -367,7 +367,7 @@ public class RotinaMedicamentoService {
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
 
         rotinaMedicamentoRepository.delete(rotina);
-        log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.getEmail());
+        log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.getId());
     }
 
     /**
@@ -491,7 +491,7 @@ public class RotinaMedicamentoService {
         boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou acessar rotinas de medicamentos sem perfil de Familiar ou Médico.", usuario.getEmail());
+            log.warn("Acesso negado: usuário {} tentou acessar rotinas de medicamentos sem perfil de Familiar ou Médico.", usuario.getId());
             throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar rotinas de medicamentos.");
         }
     }

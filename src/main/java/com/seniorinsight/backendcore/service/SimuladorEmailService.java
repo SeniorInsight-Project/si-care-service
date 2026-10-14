@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.seniorinsight.backendcore.security.Mascara;
+
 /**
  * Serviço responsável por simular o envio de e-mails da plataforma SeniorInsight (HU16).
  * Registra logs detalhados e estruturados do convite disparado para o destinatário.
@@ -33,7 +35,13 @@ public class SimuladorEmailService {
                                    String papelAcesso, Instant dataExpiracao, String mensagemPersonalizada) {
         String dataFormatada = FORMATTER.format(dataExpiracao);
 
-        log.info("""
+        log.info("[SIMULAÇÃO] E-mail de convite enviado para {} (expira em {}).",
+                Mascara.email(emailDestinatario), dataFormatada);
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        // Corpo completo só em DEBUG (ligado no perfil dev): tem e-mail, nome do idoso e token do convite.
+        log.debug("""
                 
                 ================================================================================
                 [SENIORINSIGHT - SIMULAÇÃO DE DISPARO DE E-MAIL]

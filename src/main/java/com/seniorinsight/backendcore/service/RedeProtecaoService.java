@@ -137,8 +137,7 @@ public class RedeProtecaoService {
                 .build();
 
         ConviteRede conviteSalvo = conviteRedeRepository.save(convite);
-        log.info("Convite {} gerado com sucesso para {} vinculado ao idoso {}. Token: {}",
-                conviteSalvo.getId(), emailDestinatario, idosoId, token);
+        log.info("Convite {} gerado com sucesso para o idoso {}.", conviteSalvo.getId(), idosoId);
 
         // Dispara a simulação de envio de e-mail com os detalhes do convite
         simuladorEmailService.simularEnvioConvite(
@@ -182,7 +181,7 @@ public class RedeProtecaoService {
 
         Familiar familiarLogado = familiarRepository.findByUsuarioId(usuario.getId())
                 .orElseThrow(() -> {
-                    log.warn("Usuário {} tentou aceitar convite sem possuir perfil completo de Familiar.", usuario.getEmail());
+                    log.warn("Usuário {} tentou aceitar convite sem possuir perfil completo de Familiar.", usuario.getId());
                     return new PerfilNaoAutorizadoException(
                             "Apenas usuários com perfil de Familiar completo podem aceitar convites para a Rede de Proteção. Complete seu perfil antes de prosseguir.");
                 });
@@ -190,7 +189,7 @@ public class RedeProtecaoService {
         ConviteRede convite = conviteRedeRepository.findByTokenWithIdoso(token.trim())
                 .orElseGet(() -> conviteRedeRepository.findByToken(token.trim())
                         .orElseThrow(() -> {
-                            log.warn("Tentativa de aceite com token inexistente: {}", token);
+                            log.warn("Tentativa de aceite com token de convite inexistente.");
                             return new ConviteInvalidoException("Convite não encontrado para o token informado.");
                         }));
 
@@ -205,7 +204,7 @@ public class RedeProtecaoService {
         if (convite.isExpirado()) {
             convite.expirar();
             conviteRedeRepository.save(convite);
-            log.warn("Tentativa de aceite de convite expirado. Token: {}, Expiração: {}", token, convite.getDataExpiracao());
+            log.warn("Tentativa de aceite do convite {} expirado em {}.", convite.getId(), convite.getDataExpiracao());
             throw new ConviteExpiradoException("O convite expirou. O prazo de validade temporal de 48 horas foi ultrapassado.");
         }
 
@@ -305,7 +304,7 @@ public class RedeProtecaoService {
         boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou emitir convite sem perfil de Familiar ou Médico.", usuario.getEmail());
+            log.warn("Acesso negado: usuário {} tentou emitir convite sem perfil de Familiar ou Médico.", usuario.getId());
             throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar convites da Rede de Proteção.");
         }
 
@@ -333,7 +332,7 @@ public class RedeProtecaoService {
         boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou consultar a rede sem perfil de Familiar ou Médico.", usuario.getEmail());
+            log.warn("Acesso negado: usuário {} tentou consultar a rede sem perfil de Familiar ou Médico.", usuario.getId());
             throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem visualizar a Rede de Proteção.");
         }
     }
