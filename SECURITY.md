@@ -13,10 +13,10 @@ Para garantir clareza e rastreabilidade no histórico do projeto, todas as mensa
 - `chore: ` Atualizações de tarefas de build, gerenciadores de pacotes ou configs de CI/CD.
 
 ## 2. Fluxo de Trabalho (Git Workflow)
-- **Branch Principal (`main` / `master`):** Produção/Homologação estável. É estritamente proibido fazer *push* direto para esta branch.
-- **Branch de Desenvolvimento (`dev`):** Integração contínua das features em andamento.
-- **Feature Branches:** Devem ser criadas a partir de `dev` seguindo o padrão `feature/nome-da-tarefa` ou `bugfix/descricao-do-erro`.
-- **Pull Requests (PR):** Todo código inserido em `dev` ou `main` exige obrigatoriamente um Pull Request aprovado por pelo menos um membro listado no arquivo `CODEOWNERS` e aprovação automatizada das pipelines de CI/CD.
+- **Branch Principal (`main`):** Produção. Push direto bloqueado; só recebe Pull Request vindo de `develop` (ou de `hotfix/*` para correção urgente).
+- **Branch de Desenvolvimento (`develop`):** Testes e integração das features; é a branch padrão do repositório. Push direto bloqueado.
+- **Branches de card:** Criadas a partir de `develop` pelo botão *Create a branch* do card no quadro (ex.: `84-hu-063-back-disparo-do-sos-e-estados`).
+- **Pull Requests (PR):** Todo código entra em `develop` ou `main` por Pull Request aprovado pelo responsável listado no `CODEOWNERS`. Passo a passo em `CONTRIBUTING.md`.
 
 ## 3. Segurança e LGPD (Compliance de Dados)
 - **Zero Hardcoded Secrets:** É proibido armazenar senhas, tokens de API, chaves privadas SSH ou credenciais de banco de dados diretamente no código-fonte. Utilize sempre variáveis de ambiente (`.env`).
