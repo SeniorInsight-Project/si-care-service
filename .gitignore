@@ -10,6 +10,9 @@
 .project
 .settings/
 
+# Configuração pessoal de IDE e assistentes de código
+.continue/
+
 # VS Code
 .vscode/
 
