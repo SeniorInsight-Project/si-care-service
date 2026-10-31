@@ -35,9 +35,6 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (path.startsWith("/swagger-ui") || path.startsWith("/v3/api-docs")) {
             // Permite scripts e estilos do Swagger UI
             response.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;");
-        } else if (path.equals("/test-login.html")) {
-            // Permite carregar o SDK oficial do Google Sign-In e exibir o popup de autenticação
-            response.setHeader("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline'; frame-src https://accounts.google.com; connect-src 'self' https://accounts.google.com;");
         } else {
             // CSP estrito para todas as rotas da API REST
             response.setHeader("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none';");

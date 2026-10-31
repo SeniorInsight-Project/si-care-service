@@ -14,6 +14,11 @@ spring:
       repositories:
         enabled: false
 
+api:
+  security:
+    jwt:
+      secret: segredo-usado-somente-nos-testes-automatizados
+
 google:
   client-id: test-google-client-id
   client-secret: test-google-client-secret

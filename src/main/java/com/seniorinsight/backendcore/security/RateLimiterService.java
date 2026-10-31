@@ -42,7 +42,7 @@ public class RateLimiterService {
         } catch (Exception ex) {
             // Degradação graciosa: se o Redis estiver inacessível, não bloqueia o fluxo do usuário
             log.warn("Falha de comunicação com Redis no Rate Limiting (chave: {}). Prosseguindo com degradação graciosa: {}",
-                    key, ex.getMessage());
+                    key.replaceAll(":.*", ":***"), ex.getMessage());
             return true;
         }
     }

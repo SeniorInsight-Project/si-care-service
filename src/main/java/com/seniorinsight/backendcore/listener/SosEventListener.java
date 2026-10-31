@@ -48,8 +48,8 @@ public class SosEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void processarNotificacoesSos(SosAcionadoEvent event) {
         log.warn("=== [SISTEMA SOS - HU35] DISPARO DE EMERGÊNCIA DETECTADO ===");
-        log.warn("Alarme ID: {} | Idoso: {} ({}) | Bateria: {}% | Horário: {}",
-                event.alarmeId(), event.nomeIdoso(), event.idosoId(),
+        log.warn("Alarme ID: {} | Idoso: {} | Bateria: {}% | Horário: {}",
+                event.alarmeId(), event.idosoId(),
                 event.nivelBateria() != null ? event.nivelBateria() : "N/D",
                 event.acionadoEm() != null ? FORMATTER.format(event.acionadoEm()) : "Agora");
 
@@ -67,8 +67,7 @@ public class SosEventListener {
         List<VinculoRede> redeProtecao = vinculoRedeRepository.findByIdosoIdWithFamiliar(event.idosoId());
 
         if (redeProtecao.isEmpty()) {
-            log.error("[SISTEMA SOS] ATENÇÃO: Idoso '{}' (ID: {}) não possui membros vinculados na Rede de Proteção!",
-                    event.nomeIdoso(), event.idosoId());
+            log.error("[SISTEMA SOS] ATENÇÃO: Idoso {} não possui membros vinculados na Rede de Proteção!", event.idosoId());
         } else {
             log.info("[SISTEMA SOS] Disparando notificações multicanal para {} membro(s) da rede de proteção.",
                     redeProtecao.size());
@@ -83,12 +82,18 @@ public class SosEventListener {
 
     private void enviarNotificacaoEmergencia(VinculoRede vinculo, SosAcionadoEvent event, String mapsUrl,
                                              String tipoSanguineo, String alergias, String observacoesSocorro) {
+        log.warn("[SISTEMA SOS] Alerta do alarme {} enviado (simulado) ao vínculo {} ({}).",
+                event.alarmeId(), vinculo.getId(), vinculo.getPapelAcesso());
+        if (!log.isDebugEnabled()) {
+            return;
+        }
+        // Mensagem completa só em DEBUG (ligado no perfil dev): tem nome, e-mail, localização e dados de saúde.
         String email = vinculo.getFamiliar().getUsuario().getEmail();
         String nomeFamiliar = vinculo.getFamiliar().getNomeCompleto();
         String grauParentesco = vinculo.getGrauParentesco();
         String papelAcesso = vinculo.getPapelAcesso();
 
-        log.warn("""
+        log.debug("""
                 
                 ================================================================================
                 [SENIORINSIGHT - ALERTA CRÍTICO DE EMERGÊNCIA / SOS DISPARADO]

@@ -24,6 +24,7 @@ import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.UsuarioRepository;
 import com.seniorinsight.backendcore.security.JwtService;
+import com.seniorinsight.backendcore.security.Mascara;
 
 /**
  * Serviço responsável pela autenticação via Single Sign-On (Google) e
@@ -114,7 +115,7 @@ public class GoogleAuthService {
                 usuario.setProvedorSso(ProvedorSso.GOOGLE);
             }
             usuario = usuarioRepository.save(usuario);
-            log.info("Usuário existente autenticado via SSO Google: {}", email);
+            log.info("Usuário existente autenticado via SSO Google: {}", Mascara.email(email));
         } else {
             // Provisionamento Just-In-Time (JIT)
             Usuario novoUsuario = Usuario.builder()
@@ -127,7 +128,7 @@ public class GoogleAuthService {
 
             usuario = usuarioRepository.save(novoUsuario);
             isNewUser = true;
-            log.info("Novo usuário provisionado via SSO Google (JIT): {}", email);
+            log.info("Novo usuário provisionado via SSO Google (JIT): {}", Mascara.email(email));
         }
 
         String jwt = jwtService.generateToken(usuario);
