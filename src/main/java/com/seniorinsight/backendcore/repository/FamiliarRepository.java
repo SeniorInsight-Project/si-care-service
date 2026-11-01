@@ -7,18 +7,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.seniorinsight.backendcore.domain.Familiar;
-import com.seniorinsight.backendcore.model.Usuario;
 
 @Repository
 public interface FamiliarRepository extends JpaRepository<Familiar, UUID> {
 
-    Optional<Familiar> findByUsuario(Usuario usuario);
+    Optional<Familiar> findByKeycloakSub(String keycloakSub);
 
-    Optional<Familiar> findByUsuarioId(UUID usuarioId);
+    boolean existsByKeycloakSub(String keycloakSub);
 
-    boolean existsByUsuario(Usuario usuario);
-
-    boolean existsByUsuarioId(UUID usuarioId);
+    Optional<Familiar> findByEmailIgnoreCase(String email);
 
     boolean existsByCpf(String cpf);
 

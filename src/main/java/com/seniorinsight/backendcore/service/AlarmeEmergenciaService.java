@@ -18,7 +18,7 @@ import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 
@@ -56,7 +56,7 @@ public class AlarmeEmergenciaService {
      * @return DTO com os dados do alarme disparado
      */
     @Transactional
-    public AlarmeEmergenciaResponseDTO dispararAlarme(UUID idosoId, DispararSosRequestDTO request, Usuario usuarioAutenticado) {
+    public AlarmeEmergenciaResponseDTO dispararAlarme(UUID idosoId, DispararSosRequestDTO request, UsuarioAutenticado usuarioAutenticado) {
         long inicioMs = System.currentTimeMillis();
 
         if (idosoId == null) {
@@ -111,7 +111,7 @@ public class AlarmeEmergenciaService {
      * @return DTO com os dados do alarme atualizados
      */
     @Transactional
-    public AlarmeEmergenciaResponseDTO atualizarStatus(UUID alarmeId, AtualizarStatusAlarmeRequestDTO request, Usuario usuarioAutenticado) {
+    public AlarmeEmergenciaResponseDTO atualizarStatus(UUID alarmeId, AtualizarStatusAlarmeRequestDTO request, UsuarioAutenticado usuarioAutenticado) {
         if (alarmeId == null) {
             throw new IllegalArgumentException("O identificador do alarme não pode ser nulo.");
         }

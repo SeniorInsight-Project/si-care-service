@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,10 +19,11 @@ import com.seniorinsight.backendcore.dto.PassosRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -73,7 +73,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<TelemetriaWearableResponseDTO> receberTelemetria(
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody TelemetriaWearableRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(finalId, request);
 
@@ -101,7 +101,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<List<TelemetriaWearableResponseDTO>> receberTelemetriaLote(
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody TelemetriaWearableBatchRequestDTO batchRequest,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         List<TelemetriaWearableResponseDTO> response = wearableIntegrationService.processarTelemetriaLote(idosoId, batchRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -124,7 +124,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<TelemetriaWearableResponseDTO> receberFrequenciaCardiaca(
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody FrequenciaCardiacaRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarFrequenciaCardiaca(finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -148,7 +148,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<TelemetriaWearableResponseDTO> receberPassos(
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody PassosRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarPassos(finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -172,7 +172,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<TelemetriaWearableResponseDTO> receberDeteccaoQueda(
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody DeteccaoQuedaRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarDeteccaoQueda(finalId, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
@@ -195,7 +195,7 @@ public class TelemetriaWearableController {
     public ResponseEntity<List<TelemetriaWearableResponseDTO>> buscarUltimasTelemetrias(
             @PathVariable UUID idosoId,
             @RequestParam(defaultValue = "30") int limite,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         List<TelemetriaWearableResponseDTO> leituras = wearableIntegrationService.buscarUltimasTelemetrias(idosoId, limite);
         return ResponseEntity.ok(leituras);
     }
@@ -216,7 +216,7 @@ public class TelemetriaWearableController {
     @GetMapping("/idosos/{idosoId}/telemetria-wearable/recente")
     public ResponseEntity<TelemetriaWearableResponseDTO> buscarUltimaLeitura(
             @PathVariable UUID idosoId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         TelemetriaWearableResponseDTO ultima = wearableIntegrationService.buscarUltimaLeitura(idosoId);
         if (ultima == null) {
             return ResponseEntity.noContent().build();

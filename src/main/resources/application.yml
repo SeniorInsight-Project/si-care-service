@@ -15,6 +15,14 @@ spring:
     redis:
       repositories:
         enabled: false
+  # Resource server: só valida o access token emitido pelo Keycloak (realm seniorinsight).
+  # O JWKS é descoberto pelo issuer; para usar outro endereço (ex.: rede interna do Docker),
+  # defina SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}
@@ -34,13 +42,6 @@ management:
     health:
       show-details: never
 
-# Configuração de Segurança de Tokens JWT
-api:
-  security:
-    jwt:
-      secret: ${JWT_SECRET:} # obrigatório, sem valor padrão (gere com: openssl rand -hex 32)
-      expiration: ${JWT_EXPIRATION:86400} # 24 horas em segundos
-
 # Configuração do Swagger OpenAPI
 springdoc:
   api-docs:
@@ -48,13 +49,6 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operationsSorter: method
-
-# Configuração de SSO Google
-google:
-  client-id: ${GOOGLE_CLIENT_ID:${GOOGLE_CLIENT_ID_LOCAL:${GOOGLE_CLIENT_ID_PROD:739066979344-miehigs653hlllui1fvskbfv083o029f.apps.googleusercontent.com}}}
-  client-secret: ${GOOGLE_CLIENT_SECRET:${GOOGLE_CLIENT_SECRET_LOCAL:${GOOGLE_CLIENT_SECRET_PROD:}}}
-  android-client-id: ${GOOGLE_ANDROID_CLIENT_ID:}
-  ios-client-id: ${GOOGLE_IOS_CLIENT_ID:}
 
 seniorinsight:
   integrations:

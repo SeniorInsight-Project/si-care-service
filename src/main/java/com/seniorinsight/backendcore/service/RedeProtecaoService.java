@@ -8,8 +8,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,13 +25,12 @@ import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.VinculoJaExistenteException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.security.UsuarioAutenticadoArgumentResolver;
 import com.seniorinsight.backendcore.repository.ConviteRedeRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
 /**
@@ -51,7 +48,6 @@ public class RedeProtecaoService {
     private final IdosoRepository idosoRepository;
     private final FamiliarRepository familiarRepository;
     private final MedicoRepository medicoRepository;
-    private final UsuarioRepository usuarioRepository;
     private final SimuladorEmailService simuladorEmailService;
 
     public RedeProtecaoService(
@@ -60,14 +56,12 @@ public class RedeProtecaoService {
             IdosoRepository idosoRepository,
             FamiliarRepository familiarRepository,
             MedicoRepository medicoRepository,
-            UsuarioRepository usuarioRepository,
             SimuladorEmailService simuladorEmailService) {
         this.conviteRedeRepository = conviteRedeRepository;
         this.vinculoRedeRepository = vinculoRedeRepository;
         this.idosoRepository = idosoRepository;
         this.familiarRepository = familiarRepository;
         this.medicoRepository = medicoRepository;
-        this.usuarioRepository = usuarioRepository;
         this.simuladorEmailService = simuladorEmailService;
     }
 
@@ -80,7 +74,7 @@ public class RedeProtecaoService {
      * @return DTO com informações do convite gerado e status da simulação
      */
     @Transactional
-    public ConviteRedeResponseDTO gerarConvite(UUID idosoId, ConviteRedeRequestDTO request, Usuario usuarioAutenticado) {
+    public ConviteRedeResponseDTO gerarConvite(UUID idosoId, ConviteRedeRequestDTO request, UsuarioAutenticado usuarioAutenticado) {
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
@@ -88,7 +82,7 @@ public class RedeProtecaoService {
             throw new IllegalArgumentException("Os dados do convite não podem ser nulos.");
         }
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
 
         Idoso idoso = idosoRepository.findById(idosoId)
                 .orElseThrow(() -> {
@@ -101,13 +95,11 @@ public class RedeProtecaoService {
         String emailDestinatario = request.email().trim().toLowerCase();
 
         // Verifica se o destinatário já possui perfil de familiar e já está vinculado ao idoso
-        usuarioRepository.findByEmail(emailDestinatario).ifPresent(destinatario -> {
-            familiarRepository.findByUsuarioId(destinatario.getId()).ifPresent(familiarDest -> {
-                if (vinculoRedeRepository.existsByFamiliarAndIdoso(familiarDest, idoso)) {
-                    log.warn("Tentativa de convidar familiar que já possui vínculo com o idoso {}", idosoId);
-                    throw new VinculoJaExistenteException("O familiar com e-mail '" + emailDestinatario + "' já possui vínculo ativo com este idoso na Rede de Proteção.");
-                }
-            });
+        familiarRepository.findByEmailIgnoreCase(emailDestinatario).ifPresent(familiarDest -> {
+            if (vinculoRedeRepository.existsByFamiliarAndIdoso(familiarDest, idoso)) {
+                log.warn("Tentativa de convidar familiar que já possui vínculo com o idoso {}", idosoId);
+                throw new VinculoJaExistenteException("O familiar com e-mail '" + emailDestinatario + "' já possui vínculo ativo com este idoso na Rede de Proteção.");
+            }
         });
 
         // Caso exista um convite pendente anterior para o mesmo idoso e e-mail, cancela-o para emitir o novo
@@ -133,7 +125,7 @@ public class RedeProtecaoService {
                 .grauParentescoSugerido(grauSugerido)
                 .status(StatusConvite.PENDENTE)
                 .dataExpiracao(dataExpiracao)
-                .criadoPor(usuario)
+                .criadoPorSub(usuario.keycloakSub())
                 .build();
 
         ConviteRede conviteSalvo = conviteRedeRepository.save(convite);
@@ -172,18 +164,18 @@ public class RedeProtecaoService {
      * @return DTO com informações do vínculo criado e status do processo
      */
     @Transactional
-    public AceiteConviteResponseDTO aceitarConvite(String token, Usuario usuarioAutenticado) {
+    public AceiteConviteResponseDTO aceitarConvite(String token, UsuarioAutenticado usuarioAutenticado) {
         if (token == null || token.trim().isBlank()) {
             throw new IllegalArgumentException("O token de convite é obrigatório.");
         }
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
 
-        Familiar familiarLogado = familiarRepository.findByUsuarioId(usuario.getId())
+        Familiar familiarLogado = familiarRepository.findByKeycloakSub(usuario.keycloakSub())
                 .orElseThrow(() -> {
-                    log.warn("Usuário {} tentou aceitar convite sem possuir perfil completo de Familiar.", usuario.getId());
+                    log.warn("Usuário {} tentou aceitar convite sem possuir perfil completo de Familiar.", usuario.keycloakSub());
                     return new PerfilNaoAutorizadoException(
-                            "Apenas usuários com perfil de Familiar completo podem aceitar convites para a Rede de Proteção. Complete seu perfil antes de prosseguir.");
+                            "Perfil não encontrado para este usuário. Apenas Familiares podem aceitar convites para a Rede de Proteção.");
                 });
 
         ConviteRede convite = conviteRedeRepository.findByTokenWithIdoso(token.trim())
@@ -259,12 +251,12 @@ public class RedeProtecaoService {
      * @return Lista de membros com detalhes cadastrais, papéis e permissões
      */
     @Transactional(readOnly = true)
-    public List<MembroRedeResponseDTO> listarMembrosRede(UUID idosoId, Usuario usuarioAutenticado) {
+    public List<MembroRedeResponseDTO> listarMembrosRede(UUID idosoId, UsuarioAutenticado usuarioAutenticado) {
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizadoConsulta(usuario);
 
         if (!idosoRepository.existsById(idosoId)) {
@@ -278,9 +270,9 @@ public class RedeProtecaoService {
                 .map(v -> new MembroRedeResponseDTO(
                         v.getId(),
                         v.getFamiliar().getId(),
-                        v.getFamiliar().getUsuario().getId(),
+                        v.getFamiliar().getKeycloakSub(),
                         v.getFamiliar().getNomeCompleto(),
-                        v.getFamiliar().getUsuario().getEmail(),
+                        v.getFamiliar().getEmail(),
                         v.getFamiliar().getTelefone(),
                         v.getGrauParentesco(),
                         v.getPapelAcesso(),
@@ -295,21 +287,21 @@ public class RedeProtecaoService {
      * Deve ser um perfil cadastrado de Familiar ou Médico. Se for Familiar e já houver rede formada,
      * valida se o familiar remetente possui vínculo ativo com o idoso.
      */
-    private void validarPerfilAutorizadoEmissao(Usuario usuario, Idoso idoso) {
-        if (usuario == null || usuario.getId() == null) {
+    private void validarPerfilAutorizadoEmissao(UsuarioAutenticado usuario, Idoso idoso) {
+        if (usuario == null || usuario.keycloakSub() == null) {
             throw new PerfilNaoAutorizadoException("Usuário não autenticado para emitir convites.");
         }
 
-        boolean ehFamiliar = familiarRepository.existsByUsuarioId(usuario.getId());
-        boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
+        boolean ehFamiliar = familiarRepository.existsByKeycloakSub(usuario.keycloakSub());
+        boolean ehMedico = medicoRepository.existsByKeycloakSub(usuario.keycloakSub());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou emitir convite sem perfil de Familiar ou Médico.", usuario.getId());
-            throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar convites da Rede de Proteção.");
+            log.warn("Acesso negado: usuário {} tentou emitir convite sem perfil de Familiar ou Médico.", usuario.keycloakSub());
+            throw new PerfilNaoAutorizadoException("Perfil não encontrado para este usuário.");
         }
 
         if (ehFamiliar) {
-            Familiar familiar = familiarRepository.findByUsuarioId(usuario.getId()).orElse(null);
+            Familiar familiar = familiarRepository.findByKeycloakSub(usuario.keycloakSub()).orElse(null);
             if (familiar != null) {
                 boolean redeExiste = !vinculoRedeRepository.findByIdosoId(idoso.getId()).isEmpty();
                 if (redeExiste && !vinculoRedeRepository.existsByFamiliarAndIdoso(familiar, idoso)) {
@@ -323,46 +315,25 @@ public class RedeProtecaoService {
     /**
      * Valida permissão para consulta dos membros da rede.
      */
-    private void validarPerfilAutorizadoConsulta(Usuario usuario) {
-        if (usuario == null || usuario.getId() == null) {
+    private void validarPerfilAutorizadoConsulta(UsuarioAutenticado usuario) {
+        if (usuario == null || usuario.keycloakSub() == null) {
             throw new PerfilNaoAutorizadoException("Usuário não autenticado para consultar a Rede de Proteção.");
         }
 
-        boolean ehFamiliar = familiarRepository.existsByUsuarioId(usuario.getId());
-        boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
+        boolean ehFamiliar = familiarRepository.existsByKeycloakSub(usuario.keycloakSub());
+        boolean ehMedico = medicoRepository.existsByKeycloakSub(usuario.keycloakSub());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou consultar a rede sem perfil de Familiar ou Médico.", usuario.getId());
-            throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem visualizar a Rede de Proteção.");
+            log.warn("Acesso negado: usuário {} tentou consultar a rede sem perfil de Familiar ou Médico.", usuario.keycloakSub());
+            throw new PerfilNaoAutorizadoException("Perfil não encontrado para este usuário.");
         }
     }
 
-    /**
-     * Resolve o Usuário persistido no banco a partir do token ou do SecurityContextHolder.
-     */
-    private Usuario resolverUsuarioAutenticado(Usuario usuarioParam) {
-        if (usuarioParam != null && usuarioParam.getId() != null) {
-            return usuarioRepository.findById(usuarioParam.getId())
-                    .filter(u -> u.getStatus() == StatusUsuario.ATIVO)
-                    .orElse(usuarioParam);
+    private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {
+        UsuarioAutenticado usuario = usuarioParam != null ? usuarioParam : UsuarioAutenticadoArgumentResolver.atual();
+        if (usuario == null || usuario.keycloakSub() == null || usuario.keycloakSub().isBlank()) {
+            throw new PerfilNaoAutorizadoException("Usuário não autenticado. Forneça um token JWT válido.");
         }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            if (authentication.getPrincipal() instanceof Usuario u && u.getId() != null) {
-                return usuarioRepository.findById(u.getId())
-                        .filter(user -> user.getStatus() == StatusUsuario.ATIVO)
-                        .orElse(u);
-            }
-
-            String email = authentication.getName();
-            if (email != null && !email.isBlank()) {
-                return usuarioRepository.findByEmail(email)
-                        .filter(u -> u.getStatus() == StatusUsuario.ATIVO)
-                        .orElseThrow(() -> new PerfilNaoAutorizadoException("Usuário autenticado não encontrado ou inativo no sistema."));
-            }
-        }
-
-        throw new PerfilNaoAutorizadoException("Usuário não autenticado. Forneça um token JWT válido.");
+        return usuario;
     }
 }
