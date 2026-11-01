@@ -22,7 +22,7 @@ import com.seniorinsight.backendcore.domain.Familiar;
 import com.seniorinsight.backendcore.domain.Idoso;
 import com.seniorinsight.backendcore.domain.VinculoRede;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
@@ -58,15 +58,12 @@ class SosEventListenerTest {
                 .observacoesSocorros("Diabético insulino-dependente")
                 .build();
 
-        Usuario familiarUsuario = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("filha@seniorinsight.com")
-                .build();
+        UsuarioAutenticado familiarUsuario = new UsuarioAutenticado(UUID.randomUUID().toString(), "filha@seniorinsight.com", null, List.of());
 
         Familiar mockFamiliar = Familiar.builder()
                 .id(UUID.randomUUID())
                 .nomeCompleto("Maria da Silva")
-                .usuario(familiarUsuario)
+                .keycloakSub(familiarUsuario.keycloakSub())
                 .build();
 
         mockVinculo = new VinculoRede(

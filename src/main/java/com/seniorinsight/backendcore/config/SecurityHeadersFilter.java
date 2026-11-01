@@ -15,7 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 /**
  * Filtro de Segurança HTTP (OWASP Secure Headers).
  * Aplica cabeçalhos defensivos essenciais em todas as respostas da API,
- * com ajuste específico de CSP para Swagger UI e tela de teste do Google SSO.
+ * com ajuste específico de CSP para o Swagger UI.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)

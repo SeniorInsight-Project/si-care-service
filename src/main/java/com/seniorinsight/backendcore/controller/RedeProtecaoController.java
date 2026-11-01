@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,10 +17,11 @@ import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.RedeProtecaoService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -83,7 +83,7 @@ public class RedeProtecaoController {
     public ResponseEntity<ConviteRedeResponseDTO> gerarConvite(
             @PathVariable UUID idosoId,
             @Valid @RequestBody ConviteRedeRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         ConviteRedeResponseDTO response = redeProtecaoService.gerarConvite(idosoId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -123,7 +123,7 @@ public class RedeProtecaoController {
     @PostMapping("/convites/aceitar")
     public ResponseEntity<AceiteConviteResponseDTO> aceitarConvite(
             @RequestParam("token") String token,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         AceiteConviteResponseDTO response = redeProtecaoService.aceitarConvite(token, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -155,7 +155,7 @@ public class RedeProtecaoController {
     @GetMapping("/idosos/{idosoId}/rede")
     public ResponseEntity<List<MembroRedeResponseDTO>> listarMembrosRede(
             @PathVariable UUID idosoId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         List<MembroRedeResponseDTO> response = redeProtecaoService.listarMembrosRede(idosoId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

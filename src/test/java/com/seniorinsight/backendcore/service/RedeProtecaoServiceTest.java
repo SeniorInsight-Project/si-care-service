@@ -37,13 +37,11 @@ import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.VinculoJaExistenteException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.ConviteRedeRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,9 +63,6 @@ class RedeProtecaoServiceTest {
     private MedicoRepository medicoRepository;
 
     @Mock
-    private UsuarioRepository usuarioRepository;
-
-    @Mock
     private SimuladorEmailService simuladorEmailService;
 
     @InjectMocks
@@ -75,9 +70,9 @@ class RedeProtecaoServiceTest {
 
     private UUID idosoId;
     private Idoso idoso;
-    private Usuario usuarioFamiliar;
+    private UsuarioAutenticado usuarioFamiliar;
     private Familiar familiar;
-    private Usuario usuarioConvidado;
+    private UsuarioAutenticado usuarioConvidado;
     private Familiar familiarConvidado;
 
     @BeforeEach
@@ -90,21 +85,15 @@ class RedeProtecaoServiceTest {
                 .dataNascimento(LocalDate.of(1940, 10, 12))
                 .build();
 
-        usuarioFamiliar = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("filho@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioFamiliar = new UsuarioAutenticado(UUID.randomUUID().toString(), "filho@seniorinsight.com", null, List.of());
 
-        familiar = new Familiar(UUID.randomUUID(), usuarioFamiliar, "Carlos Silva", "(11) 98888-7777", "123.456.789-00");
+        familiar = new Familiar(UUID.randomUUID(), usuarioFamiliar.keycloakSub(), "Carlos Silva", "(11) 98888-7777", "123.456.789-00");
+        familiar.setEmail(usuarioFamiliar.email());
 
-        usuarioConvidado = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("neta@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioConvidado = new UsuarioAutenticado(UUID.randomUUID().toString(), "neta@seniorinsight.com", null, List.of());
 
-        familiarConvidado = new Familiar(UUID.randomUUID(), usuarioConvidado, "Beatriz Silva", "(11) 97777-6666", "987.654.321-11");
+        familiarConvidado = new Familiar(UUID.randomUUID(), usuarioConvidado.keycloakSub(), "Beatriz Silva", "(11) 97777-6666", "987.654.321-11");
+        familiarConvidado.setEmail(usuarioConvidado.email());
     }
 
     // =========================================================================
@@ -116,12 +105,10 @@ class RedeProtecaoServiceTest {
     void deveGerarConviteComSucesso() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", "Olá!");
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
-        when(familiarRepository.findByUsuarioId(usuarioFamiliar.getId())).thenReturn(Optional.of(familiar));
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
+        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
         when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
-        when(usuarioRepository.findByEmail("neta@seniorinsight.com")).thenReturn(Optional.empty());
         when(conviteRedeRepository.findByIdosoIdAndEmailAndStatus(idosoId, "neta@seniorinsight.com", StatusConvite.PENDENTE))
                 .thenReturn(Optional.empty());
 
@@ -156,7 +143,6 @@ class RedeProtecaoServiceTest {
     void deveLancarIdosoNaoEncontradoAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
@@ -168,13 +154,11 @@ class RedeProtecaoServiceTest {
     void deveLancarVinculoJaExistenteAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
-        when(familiarRepository.findByUsuarioId(usuarioFamiliar.getId())).thenReturn(Optional.of(familiar));
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
+        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
         when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
-        when(usuarioRepository.findByEmail("neta@seniorinsight.com")).thenReturn(Optional.of(usuarioConvidado));
-        when(familiarRepository.findByUsuarioId(usuarioConvidado.getId())).thenReturn(Optional.of(familiarConvidado));
+        when(familiarRepository.findByEmailIgnoreCase("neta@seniorinsight.com")).thenReturn(Optional.of(familiarConvidado));
         when(vinculoRedeRepository.existsByFamiliarAndIdoso(familiarConvidado, idoso)).thenReturn(true);
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
@@ -200,8 +184,7 @@ class RedeProtecaoServiceTest {
                 .dataExpiracao(Instant.now().plus(48, ChronoUnit.HOURS))
                 .build();
 
-        when(usuarioRepository.findById(usuarioConvidado.getId())).thenReturn(Optional.of(usuarioConvidado));
-        when(familiarRepository.findByUsuarioId(usuarioConvidado.getId())).thenReturn(Optional.of(familiarConvidado));
+        when(familiarRepository.findByKeycloakSub(usuarioConvidado.keycloakSub())).thenReturn(Optional.of(familiarConvidado));
         when(conviteRedeRepository.findByTokenWithIdoso(token)).thenReturn(Optional.of(convite));
         when(vinculoRedeRepository.existsByFamiliarAndIdoso(familiarConvidado, idoso)).thenReturn(false);
 
@@ -229,8 +212,7 @@ class RedeProtecaoServiceTest {
     void deveLancarConviteInvalidoQuandoTokenNaoExiste() {
         String token = "token-inexistente";
 
-        when(usuarioRepository.findById(usuarioConvidado.getId())).thenReturn(Optional.of(usuarioConvidado));
-        when(familiarRepository.findByUsuarioId(usuarioConvidado.getId())).thenReturn(Optional.of(familiarConvidado));
+        when(familiarRepository.findByKeycloakSub(usuarioConvidado.keycloakSub())).thenReturn(Optional.of(familiarConvidado));
         when(conviteRedeRepository.findByTokenWithIdoso(token)).thenReturn(Optional.empty());
         when(conviteRedeRepository.findByToken(token)).thenReturn(Optional.empty());
 
@@ -252,8 +234,7 @@ class RedeProtecaoServiceTest {
                 .dataExpiracao(Instant.now().minus(2, ChronoUnit.HOURS)) // Expirado!
                 .build();
 
-        when(usuarioRepository.findById(usuarioConvidado.getId())).thenReturn(Optional.of(usuarioConvidado));
-        when(familiarRepository.findByUsuarioId(usuarioConvidado.getId())).thenReturn(Optional.of(familiarConvidado));
+        when(familiarRepository.findByKeycloakSub(usuarioConvidado.keycloakSub())).thenReturn(Optional.of(familiarConvidado));
         when(conviteRedeRepository.findByTokenWithIdoso(token)).thenReturn(Optional.of(convite));
 
         assertThatThrownBy(() -> redeProtecaoService.aceitarConvite(token, usuarioConvidado))
@@ -279,8 +260,7 @@ class RedeProtecaoServiceTest {
                 .restricoesAcesso(new HashMap<>())
                 .build();
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(vinculoRedeRepository.findByIdosoIdWithFamiliar(idosoId)).thenReturn(List.of(vinculo));
 

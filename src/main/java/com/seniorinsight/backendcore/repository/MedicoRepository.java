@@ -7,18 +7,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import com.seniorinsight.backendcore.domain.Medico;
-import com.seniorinsight.backendcore.model.Usuario;
 
 @Repository
 public interface MedicoRepository extends JpaRepository<Medico, UUID> {
 
-    Optional<Medico> findByUsuario(Usuario usuario);
+    Optional<Medico> findByKeycloakSub(String keycloakSub);
 
-    Optional<Medico> findByUsuarioId(UUID usuarioId);
-
-    boolean existsByUsuario(Usuario usuario);
-
-    boolean existsByUsuarioId(UUID usuarioId);
+    boolean existsByKeycloakSub(String keycloakSub);
 
     boolean existsByCrm(String crm);
 

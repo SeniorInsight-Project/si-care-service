@@ -27,21 +27,16 @@ import com.seniorinsight.backendcore.exception.ComorbidadeJaCadastradaException;
 import com.seniorinsight.backendcore.exception.ComorbidadeNaoEncontradaException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ComorbidadeServiceTest {
 
     @Mock
     private IdosoRepository idosoRepository;
-
-    @Mock
-    private UsuarioRepository usuarioRepository;
 
     @Mock
     private FamiliarRepository familiarRepository;
@@ -52,9 +47,9 @@ class ComorbidadeServiceTest {
     @InjectMocks
     private ComorbidadeService comorbidadeService;
 
-    private Usuario usuarioFamiliar;
-    private Usuario usuarioMedico;
-    private Usuario usuarioSemPerfil;
+    private UsuarioAutenticado usuarioFamiliar;
+    private UsuarioAutenticado usuarioMedico;
+    private UsuarioAutenticado usuarioSemPerfil;
     private Idoso idoso;
     private UUID idosoId;
 
@@ -62,23 +57,11 @@ class ComorbidadeServiceTest {
     void setUp() {
         idosoId = UUID.randomUUID();
 
-        usuarioFamiliar = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("familiar@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioFamiliar = new UsuarioAutenticado(UUID.randomUUID().toString(), "familiar@seniorinsight.com", null, List.of());
 
-        usuarioMedico = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("medico@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioMedico = new UsuarioAutenticado(UUID.randomUUID().toString(), "medico@seniorinsight.com", null, List.of());
 
-        usuarioSemPerfil = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("semperfil@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioSemPerfil = new UsuarioAutenticado(UUID.randomUUID().toString(), "semperfil@seniorinsight.com", null, List.of());
 
         idoso = Idoso.builder()
                 .id(idosoId)
@@ -95,8 +78,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve adicionar comorbidades com sucesso quando usuário for Familiar")
     void deveAdicionarComorbidadesPorFamiliarComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -113,9 +95,8 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve adicionar comorbidades com sucesso quando usuário for Médico")
     void deveAdicionarComorbidadesPorMedicoComSucesso() {
-        when(usuarioRepository.findById(usuarioMedico.getId())).thenReturn(Optional.of(usuarioMedico));
-        when(familiarRepository.existsByUsuarioId(usuarioMedico.getId())).thenReturn(false);
-        when(medicoRepository.existsByUsuarioId(usuarioMedico.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(false);
+        when(medicoRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -130,15 +111,14 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar PerfilNaoAutorizadoException quando usuário não for Familiar nem Médico")
     void deveLancarPerfilNaoAutorizadoQuandoUsuarioNaoTiverPerfil() {
-        when(usuarioRepository.findById(usuarioSemPerfil.getId())).thenReturn(Optional.of(usuarioSemPerfil));
-        when(familiarRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
-        when(medicoRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
+        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes"));
 
         assertThatThrownBy(() -> comorbidadeService.adicionarComorbidades(idosoId, request, usuarioSemPerfil))
                 .isInstanceOf(PerfilNaoAutorizadoException.class)
-                .hasMessageContaining("Apenas perfis autorizados (Familiar ou Médico)");
+                .hasMessageContaining("Perfil não encontrado para este usuário");
 
         verify(idosoRepository, never()).save(any());
     }
@@ -146,8 +126,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar IdosoNaoEncontradoException quando o idoso não existir")
     void deveLancarIdosoNaoEncontradoAoAdicionarComorbidade() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes"));
@@ -159,8 +138,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar ComorbidadeJaCadastradaException quando todas as comorbidades informadas já existirem")
     void deveLancarComorbidadeJaCadastradaQuandoJaExistir() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
 
         // Idoso já possui "Hipertensão Arterial"
@@ -180,9 +158,8 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve remover comorbidade com sucesso quando comorbidade existir na lista")
     void deveRemoverComorbidadeComSucesso() {
-        when(usuarioRepository.findById(usuarioMedico.getId())).thenReturn(Optional.of(usuarioMedico));
-        when(familiarRepository.existsByUsuarioId(usuarioMedico.getId())).thenReturn(false);
-        when(medicoRepository.existsByUsuarioId(usuarioMedico.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(false);
+        when(medicoRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -196,8 +173,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar ComorbidadeNaoEncontradaException quando comorbidade a ser removida não constar no idoso")
     void deveLancarComorbidadeNaoEncontradaQuandoNaoExistirNaLista() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
 
         assertThatThrownBy(() -> comorbidadeService.removerComorbidade(idosoId, "Osteoporose", usuarioFamiliar))
@@ -210,9 +186,8 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar PerfilNaoAutorizadoException ao tentar remover sem perfil de Familiar ou Médico")
     void deveLancarPerfilNaoAutorizadoAoRemoverComorbidade() {
-        when(usuarioRepository.findById(usuarioSemPerfil.getId())).thenReturn(Optional.of(usuarioSemPerfil));
-        when(familiarRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
-        when(medicoRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
+        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
 
         assertThatThrownBy(() -> comorbidadeService.removerComorbidade(idosoId, "Hipertensão Arterial", usuarioSemPerfil))
                 .isInstanceOf(PerfilNaoAutorizadoException.class);
@@ -227,8 +202,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve listar comorbidades do idoso com sucesso")
     void deveListarComorbidadesComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
 
         ComorbidadesResponseDTO response = comorbidadeService.listarComorbidades(idosoId, usuarioFamiliar);

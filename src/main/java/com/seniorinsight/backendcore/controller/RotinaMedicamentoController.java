@@ -7,7 +7,6 @@ import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,10 +22,11 @@ import com.seniorinsight.backendcore.dto.ConfirmarIngestaoRequestDTO;
 import com.seniorinsight.backendcore.dto.HistoricoMedicacaoResponseDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoRequestDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.RotinaMedicamentoService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -85,7 +85,7 @@ public class RotinaMedicamentoController {
     public ResponseEntity<RotinaMedicamentoResponseDTO> criarRotina(
             @PathVariable UUID idosoId,
             @Valid @RequestBody RotinaMedicamentoRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         RotinaMedicamentoResponseDTO response = rotinaMedicamentoService.criarRotina(idosoId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -119,7 +119,7 @@ public class RotinaMedicamentoController {
             @PathVariable UUID idosoId,
             @RequestParam(value = "data", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataReferencia,
             @RequestParam(value = "apenasAtivos", required = false, defaultValue = "true") Boolean apenasAtivos,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         List<RotinaMedicamentoResponseDTO> response = rotinaMedicamentoService.listarRotinasDiarias(
                 idosoId, dataReferencia, apenasAtivos, usuarioAutenticado);
         return ResponseEntity.ok(response);
@@ -158,7 +158,7 @@ public class RotinaMedicamentoController {
     public ResponseEntity<HistoricoMedicacaoResponseDTO> confirmarIngestao(
             @PathVariable UUID rotinaId,
             @RequestBody(required = false) ConfirmarIngestaoRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         HistoricoMedicacaoResponseDTO response = rotinaMedicamentoService.confirmarIngestao(rotinaId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -189,7 +189,7 @@ public class RotinaMedicamentoController {
     @GetMapping("/rotinas-medicamentos/{rotinaId}")
     public ResponseEntity<RotinaMedicamentoResponseDTO> obterRotinaPorId(
             @PathVariable UUID rotinaId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         RotinaMedicamentoResponseDTO response = rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -225,7 +225,7 @@ public class RotinaMedicamentoController {
     public ResponseEntity<RotinaMedicamentoResponseDTO> atualizarRotina(
             @PathVariable UUID rotinaId,
             @RequestBody AtualizarRotinaRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         RotinaMedicamentoResponseDTO response = rotinaMedicamentoService.atualizarRotina(rotinaId, request, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -255,7 +255,7 @@ public class RotinaMedicamentoController {
     @DeleteMapping("/rotinas-medicamentos/{rotinaId}")
     public ResponseEntity<Void> removerRotina(
             @PathVariable UUID rotinaId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         rotinaMedicamentoService.removerRotina(rotinaId, usuarioAutenticado);
         return ResponseEntity.noContent().build();
     }
@@ -286,7 +286,7 @@ public class RotinaMedicamentoController {
     @GetMapping("/rotinas-medicamentos/{rotinaId}/historico")
     public ResponseEntity<List<HistoricoMedicacaoResponseDTO>> listarHistoricoRotina(
             @PathVariable UUID rotinaId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         List<HistoricoMedicacaoResponseDTO> response = rotinaMedicamentoService.listarHistoricoRotina(rotinaId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

@@ -21,7 +21,7 @@ public interface VinculoRedeRepository extends JpaRepository<VinculoRede, UUID> 
 
     List<VinculoRede> findByIdosoId(UUID idosoId);
 
-    @Query("SELECT v FROM VinculoRede v JOIN FETCH v.familiar f JOIN FETCH f.usuario WHERE v.idoso.id = :idosoId")
+    @Query("SELECT v FROM VinculoRede v JOIN FETCH v.familiar f WHERE v.idoso.id = :idosoId")
     List<VinculoRede> findByIdosoIdWithFamiliar(@Param("idosoId") UUID idosoId);
 
     Optional<VinculoRede> findByFamiliarAndIdoso(Familiar familiar, Idoso idoso);
