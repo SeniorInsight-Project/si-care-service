@@ -268,6 +268,7 @@ class RedeProtecaoServiceTest {
 
         assertThat(membros).hasSize(1);
         MembroRedeResponseDTO dto = membros.get(0);
+        assertThat(dto.usuarioId()).isEqualTo(usuarioFamiliar.keycloakSub());
         assertThat(dto.nomeCompleto()).isEqualTo("Carlos Silva");
         assertThat(dto.email()).isEqualTo("filho@seniorinsight.com");
         assertThat(dto.grauParentesco()).isEqualTo("Filho");

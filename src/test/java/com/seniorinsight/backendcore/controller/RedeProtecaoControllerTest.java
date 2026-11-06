@@ -224,6 +224,8 @@ class RedeProtecaoControllerTest {
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/rede", idosoId)
                         .with(tokenFamiliar()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].usuarioId").value("sub-carlos"))
+                .andExpect(jsonPath("$[0].keycloakSub").doesNotExist())
                 .andExpect(jsonPath("$[0].nomeCompleto").value("Carlos Silva"))
                 .andExpect(jsonPath("$[0].email").value("carlos@email.com"))
                 .andExpect(jsonPath("$[0].grauParentesco").value("Filho"))
