@@ -13,12 +13,9 @@ spring:
     redis:
       repositories:
         enabled: false
-
-api:
   security:
-    jwt:
-      secret: segredo-usado-somente-nos-testes-automatizados
-
-google:
-  client-id: test-google-client-id
-  client-secret: test-google-client-secret
+    oauth2:
+      resourceserver:
+        jwt:
+          # Nunca é consultado: os testes injetam o JWT com SecurityMockMvcRequestPostProcessors.jwt().
+          issuer-uri: http://localhost:8180/realms/seniorinsight

@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.seniorinsight.backendcore.model.Usuario;
-
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -16,14 +14,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 /**
  * Entidade JPA para o perfil de Familiar (HU-002 / DRS).
- * Possui vínculo 1:1 obrigatório com a conta do Usuário.
+ * Ligado ao usuário do Keycloak pela claim sub (keycloakSub).
  */
 @Entity
 @Table(name = "familiares")
@@ -33,9 +30,11 @@ public class Familiar {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "usuario_id", referencedColumnName = "id", nullable = false, unique = true)
-    private Usuario usuario;
+    @Column(name = "keycloak_sub", nullable = false, unique = true, length = 64)
+    private String keycloakSub;
+
+    @Column(length = 320)
+    private String email;
 
     @Column(name = "nome_completo", nullable = false)
     private String nomeCompleto;
@@ -58,9 +57,9 @@ public class Familiar {
     public Familiar() {
     }
 
-    public Familiar(UUID id, Usuario usuario, String nomeCompleto, String telefone, String cpf) {
+    public Familiar(UUID id, String keycloakSub, String nomeCompleto, String telefone, String cpf) {
         this.id = id;
-        this.usuario = usuario;
+        this.keycloakSub = keycloakSub;
         this.nomeCompleto = nomeCompleto;
         this.telefone = telefone;
         this.cpf = cpf;
@@ -88,12 +87,20 @@ public class Familiar {
         this.id = id;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public String getKeycloakSub() {
+        return keycloakSub;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setKeycloakSub(String keycloakSub) {
+        this.keycloakSub = keycloakSub;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getNomeCompleto() {
@@ -164,7 +171,8 @@ public class Familiar {
 
     public static class FamiliarBuilder {
         private UUID id;
-        private Usuario usuario;
+        private String keycloakSub;
+        private String email;
         private String nomeCompleto;
         private String telefone;
         private String cpf;
@@ -177,8 +185,13 @@ public class Familiar {
             return this;
         }
 
-        public FamiliarBuilder usuario(Usuario usuario) {
-            this.usuario = usuario;
+        public FamiliarBuilder keycloakSub(String keycloakSub) {
+            this.keycloakSub = keycloakSub;
+            return this;
+        }
+
+        public FamiliarBuilder email(String email) {
+            this.email = email;
             return this;
         }
 
@@ -198,7 +211,9 @@ public class Familiar {
         }
 
         public Familiar build() {
-            return new Familiar(id, usuario, nomeCompleto, telefone, cpf);
+            Familiar familiar = new Familiar(id, keycloakSub, nomeCompleto, telefone, cpf);
+            familiar.setEmail(email);
+            return familiar;
         }
     }
 }

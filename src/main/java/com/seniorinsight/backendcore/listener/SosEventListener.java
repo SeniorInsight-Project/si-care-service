@@ -88,7 +88,7 @@ public class SosEventListener {
             return;
         }
         // Mensagem completa só em DEBUG (ligado no perfil dev): tem nome, e-mail, localização e dados de saúde.
-        String email = vinculo.getFamiliar().getUsuario().getEmail();
+        String email = vinculo.getFamiliar().getEmail();
         String nomeFamiliar = vinculo.getFamiliar().getNomeCompleto();
         String grauParentesco = vinculo.getGrauParentesco();
         String papelAcesso = vinculo.getPapelAcesso();

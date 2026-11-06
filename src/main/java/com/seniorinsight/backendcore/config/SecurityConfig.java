@@ -1,87 +1,90 @@
 package com.seniorinsight.backendcore.config;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.seniorinsight.backendcore.security.JwtAuthenticationFilter;
+import com.seniorinsight.backendcore.security.ConversorRolesKeycloak;
 
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Configuração central de segurança (Spring Security 6+).
- * Configura autenticação stateless com JWT, BCrypt PasswordEncoder e controle de rotas.
+ * Resource server: valida o JWT emitido pelo Keycloak (realm seniorinsight), configurado em
+ * {@code spring.security.oauth2.resourceserver.jwt.issuer-uri}. O care-service não tem login próprio,
+ * não emite token e não guarda senha.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthFilter;
-
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter) {
-        this.jwtAuthFilter = jwtAuthFilter;
-    }
+    private static final String[] ROTAS_PUBLICAS = {
+            "/",
+            "/api/v1/health",
+            "/actuator/health", "/actuator/health/**",
+            "/v3/api-docs", "/v3/api-docs/**",
+            "/swagger-ui.html", "/swagger-ui/**"
+    };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        AuthenticationEntryPoint naoAutorizado = (request, response, authException) -> {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("""
+                {
+                  "timestamp": "%s",
+                  "status": 401,
+                  "error": "Não Autorizado",
+                  "message": "Acesso não autorizado. Token JWT ausente, inválido ou expirado.",
+                  "path": "%s"
+                }
+                """.formatted(Instant.now().toString(), request.getRequestURI()));
+        };
+
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(
-                                "/",
-                                "/api/v1/health",
-                                "/actuator/**",
-                                "/v3/api-docs/**",
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/api/v1/auth/login",
-                                "/api/v1/auth/registro",
-                                "/api/v1/auth/sso"
-                        ).permitAll()
-                        .requestMatchers("/api/v1/auth/completar-perfil").authenticated()
+                        .requestMatchers(ROTAS_PUBLICAS).permitAll()
                         .anyRequest().authenticated()
                 )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType("application/json;charset=UTF-8");
-                            response.getWriter().write("""
-                                {
-                                  "timestamp": "%s",
-                                  "status": 401,
-                                  "error": "Não Autorizado",
-                                  "message": "Acesso não autorizado. Token JWT ausente, inválido ou expirado.",
-                                  "path": "%s"
-                                }
-                                """.formatted(Instant.now().toString(), request.getRequestURI()));
-                        })
+                .oauth2ResourceServer(rs -> rs
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(conversorAutenticacao()))
+                        .authenticationEntryPoint(naoAutorizado)
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(naoAutorizado));
 
         return http.build();
     }
 
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+    /** Authorities = scopes do token ({@code SCOPE_*}) + roles de realm do Keycloak ({@code ROLE_*}). */
+    static JwtAuthenticationConverter conversorAutenticacao() {
+        JwtGrantedAuthoritiesConverter scopes = new JwtGrantedAuthoritiesConverter();
+        ConversorRolesKeycloak roles = new ConversorRolesKeycloak();
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
-        return config.getAuthenticationManager();
+        JwtAuthenticationConverter conversor = new JwtAuthenticationConverter();
+        conversor.setJwtGrantedAuthoritiesConverter(jwt -> {
+            Collection<GrantedAuthority> authorities = new ArrayList<>(scopes.convert(jwt));
+            authorities.addAll(roles.convert(jwt));
+            return authorities;
+        });
+        return conversor;
     }
 }

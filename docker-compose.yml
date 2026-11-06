@@ -54,9 +54,8 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-seniorinsight}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-}
-      GOOGLE_CLIENT_ID_LOCAL: ${GOOGLE_CLIENT_ID_LOCAL:-}
-      GOOGLE_CLIENT_SECRET_LOCAL: ${GOOGLE_CLIENT_SECRET_LOCAL:-}
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:-http://localhost:8180/realms/seniorinsight}
+      # Para um JWKS fora do issuer, acrescente aqui SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI (nunca vazio).
       LLM_OPENAI_BASE_URL: ${LLM_OPENAI_BASE_URL:-https://api.openai.com}
       LLM_OPENAI_API_KEY: ${LLM_OPENAI_API_KEY:-}
       LLM_ANTHROPIC_BASE_URL: ${LLM_ANTHROPIC_BASE_URL:-https://api.anthropic.com}

@@ -40,6 +40,6 @@ public class OpenApiConfig {
                                 .type(SecurityScheme.Type.HTTP)
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
-                                .description("Insira o token JWT gerado no endpoint /api/v1/auth/sso")));
+                                .description("Insira o access token emitido pelo Keycloak (realm seniorinsight)")));
     }
 }

@@ -3,7 +3,6 @@ package com.seniorinsight.backendcore.domain;
 import java.time.Instant;
 import java.util.UUID;
 
-import com.seniorinsight.backendcore.model.Usuario;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -48,9 +47,11 @@ public class HistoricoMedicacao {
     @Column(length = 500)
     private String observacao;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "registrado_por_id")
-    private Usuario registradoPor;
+    @Column(name = "registrado_por_sub", length = 64)
+    private String registradoPorSub;
+
+    @Column(name = "registrado_por_nome")
+    private String registradoPorNome;
 
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
@@ -60,14 +61,14 @@ public class HistoricoMedicacao {
 
     public HistoricoMedicacao(UUID id, RotinaMedicamento rotina, StatusIngestao status,
                              Instant dataHoraIngestao, Instant dataHoraPrevista,
-                             String observacao, Usuario registradoPor) {
+                             String observacao, String registradoPorSub) {
         this.id = id;
         this.rotina = rotina;
         this.status = status;
         this.dataHoraIngestao = dataHoraIngestao;
         this.dataHoraPrevista = dataHoraPrevista;
         this.observacao = observacao;
-        this.registradoPor = registradoPor;
+        this.registradoPorSub = registradoPorSub;
     }
 
     @PrePersist
@@ -130,12 +131,20 @@ public class HistoricoMedicacao {
         this.observacao = observacao;
     }
 
-    public Usuario getRegistradoPor() {
-        return registradoPor;
+    public String getRegistradoPorNome() {
+        return registradoPorNome;
     }
 
-    public void setRegistradoPor(Usuario registradoPor) {
-        this.registradoPor = registradoPor;
+    public void setRegistradoPorNome(String registradoPorNome) {
+        this.registradoPorNome = registradoPorNome;
+    }
+
+    public String getRegistradoPorSub() {
+        return registradoPorSub;
+    }
+
+    public void setRegistradoPorSub(String registradoPorSub) {
+        this.registradoPorSub = registradoPorSub;
     }
 
     public Instant getCriadoEm() {
@@ -159,7 +168,8 @@ public class HistoricoMedicacao {
         private Instant dataHoraIngestao;
         private Instant dataHoraPrevista;
         private String observacao;
-        private Usuario registradoPor;
+        private String registradoPorSub;
+        private String registradoPorNome;
 
         HistoricoMedicacaoBuilder() {
         }
@@ -194,13 +204,21 @@ public class HistoricoMedicacao {
             return this;
         }
 
-        public HistoricoMedicacaoBuilder registradoPor(Usuario registradoPor) {
-            this.registradoPor = registradoPor;
+        public HistoricoMedicacaoBuilder registradoPorSub(String registradoPorSub) {
+            this.registradoPorSub = registradoPorSub;
+            return this;
+        }
+
+        public HistoricoMedicacaoBuilder registradoPorNome(String registradoPorNome) {
+            this.registradoPorNome = registradoPorNome;
             return this;
         }
 
         public HistoricoMedicacao build() {
-            return new HistoricoMedicacao(id, rotina, status, dataHoraIngestao, dataHoraPrevista, observacao, registradoPor);
+            HistoricoMedicacao historico = new HistoricoMedicacao(id, rotina, status, dataHoraIngestao, dataHoraPrevista,
+                    observacao, registradoPorSub);
+            historico.setRegistradoPorNome(registradoPorNome);
+            return historico;
         }
     }
 }

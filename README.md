@@ -68,7 +68,7 @@ Antes de iniciar qualquer um dos modos, copie o template de variáveis de ambien
 cp template.env .env
 ```
 
-Depois preencha o `JWT_SECRET` no `.env` com um valor gerado por `openssl rand -hex 32`. Ele não tem valor padrão: sem ele o serviço não sobe. *(Banco e Redis já têm valores padrão para desenvolvimento local.)*
+Depois confira o `KEYCLOAK_ISSUER_URI` no `.env`: é o issuer do realm `seniorinsight` no Keycloak e tem de ser igual à claim `iss` dos tokens. Ele não tem valor padrão: sem ele o serviço não sobe. Se o JWKS não for alcançável pelo endereço do issuer (ex.: serviço dentro do Docker e Keycloak exposto em `localhost`), defina também `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI`; não a deixe vazia. *(Banco e Redis já têm valores padrão para desenvolvimento local.)*
 
 ---
 
@@ -131,9 +131,8 @@ O projeto utiliza o **Flyway** para versionamento e evolução automática do es
 - **Padrão de nomenclatura:** `V<Número>__<Descricao_Sem_Acentos>.sql` (ex: `V1__Create_Auth_Tables.sql`)
 - **Execução:** Ao inicializar a aplicação (seja local ou no Heroku), o Flyway detecta novas migrações e as executa automaticamente.
 
-### Tabelas Criadas na Migração V1 (Épico 1: Acesso e Segurança)
-- **`usuarios`**: Gestão de identidade com suporte a UUID v4, login local (e-mail + senha hash), SSO Google/Apple (`provedor_sso`, `sso_id`), status da conta e autenticação em dois fatores (`mfa_habilitado`, `mfa_segredo`).
-- **`tokens_recuperacao`**: Tokens descartáveis com expiração temporal para recuperação segura de senha.
+### Identidade (Keycloak) e a migração V7
+Login, senha, SSO e MFA são do Keycloak (realm `seniorinsight`). A V1 criou `usuarios` e `tokens_recuperacao` para o login próprio, que não existe mais: a **V7** apaga as duas tabelas e liga `familiares` e `medicos` ao usuário do Keycloak pela coluna `keycloak_sub` (claim `sub` do token). Não edite migrações já aplicadas (V1 a V7): o Flyway valida o checksum.
 - **`flyway_schema_history`**: Tabela interna do Flyway para rastreabilidade de migrações.
 
 ---
@@ -148,7 +147,7 @@ O projeto utiliza o **Flyway** para versionamento e evolução automática do es
    - `Referrer-Policy: strict-origin-when-cross-origin`
    - `Permissions-Policy: camera=(), microphone=(), geolocation=()`
 2. **Supressão de Whitelabel & Stacktraces:** Em caso de erros (404/500), respostas HTML e rastros de stacktrace são ocultados para evitar Information Disclosure.
-3. **Rate Limiting (Redis):** `RateLimiterService` com contadores atômicos e expiração automática para proteger endpoints críticos contra força bruta (Login, MFA, Recuperação de Senha).
+3. **Resource server do Keycloak:** todas as rotas, menos `/`, `/api/v1/health`, `/actuator/health/**`, `/v3/api-docs/**` e `/swagger-ui/**`, exigem um access token do realm `seniorinsight` (`Authorization: Bearer ...`). Sem token, com token expirado ou de outro emissor: 401. As roles do realm (`realm_access.roles`) viram `ROLE_<role>` (ex.: `ROLE_familiar`). Token válido sem perfil de Familiar/Médico para o `sub`: 403 ("Perfil não encontrado para este usuário").
 4. **Execução Segura em Contêiner:** A imagem final do Docker utiliza a base `eclipse-temurin:21-jre-alpine` rodando com usuário sem privilégios (`spring:spring`).
 
 ---
@@ -157,14 +156,12 @@ O projeto utiliza o **Flyway** para versionamento e evolução automática do es
 
 O projeto conta com três perfis principais do Spring:
 - **`application.yml`**: Configurações compartilhadas e definição do profile ativo padrão (`${SPRING_PROFILES_ACTIVE:dev}`).
-- **`application-dev.yml`**: Conexões locais apontando para contêineres/localhost e variáveis de OAuth locais (`GOOGLE_CLIENT_ID_LOCAL`).
-- **`application-prod.yml`**: Perfil de produção para o Heroku, lendo `JDBC_DATABASE_URL` (adaptada automaticamente pelo buildpack da `DATABASE_URL`), `REDIS_URL`, suporte nativo a proxy reverso e credenciais de produção (`GOOGLE_CLIENT_ID_PROD`).
+- **`application-dev.yml`**: Conexões locais apontando para contêineres/localhost.
+- **`application-prod.yml`**: Perfil de produção para o Heroku, lendo `JDBC_DATABASE_URL` (adaptada automaticamente pelo buildpack da `DATABASE_URL`), `REDIS_URL` e suporte nativo a proxy reverso.
 
 ### Config Vars no Heroku (Cadastradas no Painel)
 ```bash
 SPRING_PROFILES_ACTIVE=prod
-JWT_SECRET=valor-gerado-com-openssl-rand-hex-32
-GOOGLE_CLIENT_ID_PROD=seu-client-id-prod.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET_PROD=seu-client-secret-prod
+KEYCLOAK_ISSUER_URI=https://<host-do-keycloak>/realms/seniorinsight
 ```
 *(Variáveis como `DATABASE_URL`, `JDBC_DATABASE_URL`, `REDIS_URL` e `PORT` são injetadas automaticamente pelos add-ons e dynos do Heroku).*

@@ -1,5 +1,7 @@
 package com.seniorinsight.backendcore.controller;
 
+import java.util.Map;
+import java.util.List;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -15,7 +17,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -30,15 +34,10 @@ import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
-import com.seniorinsight.backendcore.security.JwtAuthenticationFilter;
-import com.seniorinsight.backendcore.security.JwtService;
 import com.seniorinsight.backendcore.service.AlarmeEmergenciaService;
 
 @WebMvcTest(controllers = AlarmeEmergenciaController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class AlarmeEmergenciaControllerTest {
 
     @Autowired
@@ -51,28 +50,17 @@ class AlarmeEmergenciaControllerTest {
     private AlarmeEmergenciaService alarmeEmergenciaService;
 
     @MockBean
-    private JwtService jwtService;
-
-    @MockBean
-    private UsuarioRepository usuarioRepository;
+    private JwtDecoder jwtDecoder;
 
     private UUID idosoId;
     private UUID alarmeId;
-    private Usuario mockUsuario;
 
     @BeforeEach
     void setUp() {
         idosoId = UUID.randomUUID();
         alarmeId = UUID.randomUUID();
 
-        mockUsuario = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("idoso@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
 
-        when(jwtService.validateAndGetSubject(any())).thenReturn("idoso@seniorinsight.com");
-        when(usuarioRepository.findByEmail("idoso@seniorinsight.com")).thenReturn(Optional.of(mockUsuario));
     }
 
     // =========================================================================
@@ -92,7 +80,6 @@ class AlarmeEmergenciaControllerTest {
 
     @Test
     @DisplayName("POST /idosos/{idosoId}/sos deve retornar 202 Accepted com dados do alarme disparado")
-    @WithMockUser(username = "idoso@seniorinsight.com")
     void deveRetornar202AoDispararSosComSucesso() throws Exception {
         DispararSosRequestDTO request = new DispararSosRequestDTO(-23.550520, -46.633308, 85, "Botão acionado");
 
@@ -114,7 +101,7 @@ class AlarmeEmergenciaControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId)
-                        .header("Authorization", "Bearer token-mock")
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isAccepted())
@@ -126,13 +113,12 @@ class AlarmeEmergenciaControllerTest {
 
     @Test
     @DisplayName("POST /idosos/{idosoId}/sos deve retornar 400 Bad Request quando telemetria de bateria for inválida (>100)")
-    @WithMockUser(username = "idoso@seniorinsight.com")
     void deveRetornar400AoDispararComTelemetriaInvalida() throws Exception {
         // Nível de bateria > 100 é proibido pela validação Bean Validation
         DispararSosRequestDTO requestInvalido = new DispararSosRequestDTO(-23.550520, -46.633308, 150, "Erro");
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId)
-                        .header("Authorization", "Bearer token-mock")
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(requestInvalido)))
                 .andExpect(status().isBadRequest())
@@ -141,7 +127,6 @@ class AlarmeEmergenciaControllerTest {
 
     @Test
     @DisplayName("POST /idosos/{idosoId}/sos deve retornar 404 Not Found quando o idoso não existir")
-    @WithMockUser(username = "idoso@seniorinsight.com")
     void deveRetornar404AoDispararParaIdosoInexistente() throws Exception {
         DispararSosRequestDTO request = new DispararSosRequestDTO(-23.550520, -46.633308, 80, null);
 
@@ -149,7 +134,7 @@ class AlarmeEmergenciaControllerTest {
                 .thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId)
-                        .header("Authorization", "Bearer token-mock")
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -162,7 +147,6 @@ class AlarmeEmergenciaControllerTest {
 
     @Test
     @DisplayName("PUT /sos/{alarmeId}/status deve retornar 200 OK ao atualizar status com sucesso")
-    @WithMockUser(username = "idoso@seniorinsight.com")
     void deveRetornar200AoAtualizarStatusComSucesso() throws Exception {
         AtualizarStatusAlarmeRequestDTO request = new AtualizarStatusAlarmeRequestDTO(
                 StatusAlarme.EM_ATENDIMENTO, "Equipe SAMU deslocada"
@@ -186,7 +170,7 @@ class AlarmeEmergenciaControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(put("/api/v1/sos/{alarmeId}/status", alarmeId)
-                        .header("Authorization", "Bearer token-mock")
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -197,7 +181,6 @@ class AlarmeEmergenciaControllerTest {
 
     @Test
     @DisplayName("PUT /sos/{alarmeId}/status deve retornar 404 Not Found quando alarme não for localizado")
-    @WithMockUser(username = "idoso@seniorinsight.com")
     void deveRetornar404AoAtualizarAlarmeInexistente() throws Exception {
         AtualizarStatusAlarmeRequestDTO request = new AtualizarStatusAlarmeRequestDTO(
                 StatusAlarme.RESOLVIDO, "Finalizado"
@@ -207,10 +190,16 @@ class AlarmeEmergenciaControllerTest {
                 .thenThrow(new AlarmeNaoEncontradoException(alarmeId));
 
         mockMvc.perform(put("/api/v1/sos/{alarmeId}/status", alarmeId)
-                        .header("Authorization", "Bearer token-mock")
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Alarme Não Encontrado"));
+    }
+
+    private static JwtRequestPostProcessor tokenFamiliar() {
+        return jwt().jwt(j -> j.subject("sub-familiar")
+                .claim("email", "familiar@seniorinsight.com")
+                .claim("realm_access", Map.of("roles", List.of("familiar"))));
     }
 }

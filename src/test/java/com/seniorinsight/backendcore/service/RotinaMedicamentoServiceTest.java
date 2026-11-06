@@ -38,15 +38,13 @@ import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.MedicamentoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.HistoricoMedicacaoRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicamentoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.RotinaMedicamentoRepository;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
 class RotinaMedicamentoServiceTest {
@@ -66,9 +64,6 @@ class RotinaMedicamentoServiceTest {
     private IdosoRepository idosoRepository;
 
     @Mock
-    private UsuarioRepository usuarioRepository;
-
-    @Mock
     private FamiliarRepository familiarRepository;
 
     @Mock
@@ -77,8 +72,8 @@ class RotinaMedicamentoServiceTest {
     @InjectMocks
     private RotinaMedicamentoService rotinaMedicamentoService;
 
-    private Usuario usuarioFamiliar;
-    private Usuario usuarioSemPerfil;
+    private UsuarioAutenticado usuarioFamiliar;
+    private UsuarioAutenticado usuarioSemPerfil;
     private Idoso idoso;
     private Medicamento medicamento;
     private RotinaMedicamento rotina;
@@ -92,17 +87,9 @@ class RotinaMedicamentoServiceTest {
         rotinaId = UUID.randomUUID();
         medicamentoId = UUID.randomUUID();
 
-        usuarioFamiliar = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("familiar@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioFamiliar = new UsuarioAutenticado(UUID.randomUUID().toString(), "familiar@seniorinsight.com", null, List.of());
 
-        usuarioSemPerfil = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("semperfil@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
+        usuarioSemPerfil = new UsuarioAutenticado(UUID.randomUUID().toString(), "semperfil@seniorinsight.com", null, List.of());
 
         idoso = Idoso.builder()
                 .id(idosoId)
@@ -137,8 +124,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve criar rotina cadastrando novo medicamento com sucesso")
     void deveCriarRotinaComNovoMedicamentoComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(medicamentoRepository.findByNomeIgnoreCaseAndDosagemIgnoreCase("Losartana Potássica", "50mg"))
                 .thenReturn(Optional.empty());
@@ -176,8 +162,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve criar rotina reutilizando medicamento existente por ID")
     void deveCriarRotinaComMedicamentoExistentePorIdComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(medicamentoRepository.findById(medicamentoId)).thenReturn(Optional.of(medicamento));
         when(rotinaMedicamentoRepository.save(any(RotinaMedicamento.class))).thenAnswer(i -> {
@@ -209,8 +194,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve lançar IdosoNaoEncontradoException ao criar rotina para idoso inexistente")
     void deveLancarIdosoNaoEncontradoAoCriarRotina() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
 
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
@@ -226,9 +210,8 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve lançar PerfilNaoAutorizadoException quando usuário não for Familiar nem Médico")
     void deveLancarPerfilNaoAutorizadoAoCriarRotina() {
-        when(usuarioRepository.findById(usuarioSemPerfil.getId())).thenReturn(Optional.of(usuarioSemPerfil));
-        when(familiarRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
-        when(medicoRepository.existsByUsuarioId(usuarioSemPerfil.getId())).thenReturn(false);
+        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
 
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
                 null, "Aspirina", "100mg", null, LocalTime.of(8, 0), "Diário", "TODOS", null, null, null
@@ -242,8 +225,7 @@ class RotinaMedicamentoServiceTest {
     @DisplayName("Deve lançar MedicamentoNaoEncontradoException quando ID de medicamento não existir")
     void deveLancarMedicamentoNaoEncontradoQuandoIdInexistente() {
         UUID idInexistente = UUID.randomUUID();
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
         when(medicamentoRepository.findById(idInexistente)).thenReturn(Optional.empty());
 
@@ -262,8 +244,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve listar rotina diária com status PENDENTE quando ainda não houve ingestão hoje")
     void deveListarRotinasDiariasComStatusPendente() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdosoIdAndAtivoWithDetails(idosoId, true))
                 .thenReturn(List.of(rotina));
@@ -283,8 +264,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve listar rotina diária com status TOMADO quando ingestão foi registrada hoje")
     void deveListarRotinasDiariasComStatusTomado() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdosoIdAndAtivoWithDetails(idosoId, true))
                 .thenReturn(List.of(rotina));
@@ -323,8 +303,7 @@ class RotinaMedicamentoServiceTest {
         // Ingestão às 08:20 (20 minutos após -> dentro da tolerância de 30 min)
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 20), FUSO).toInstant();
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -355,8 +334,7 @@ class RotinaMedicamentoServiceTest {
         // Ingestão às 08:45 (45 minutos após -> atraso superior a 30 min)
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 45), FUSO).toInstant();
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -384,8 +362,7 @@ class RotinaMedicamentoServiceTest {
         LocalDate dataHoje = LocalDate.of(2026, 10, 1);
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 0), FUSO).toInstant();
 
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -409,8 +386,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve lançar RotinaMedicamentoNaoEncontradaException ao confirmar em rotina inexistente")
     void deveLancarRotinaNaoEncontradaAoConfirmarIngestao() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> rotinaMedicamentoService.confirmarIngestao(
@@ -425,8 +401,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve obter rotina por ID com sucesso")
     void deveObterRotinaPorIdComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
 
         RotinaMedicamentoResponseDTO response = rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioFamiliar);
@@ -439,8 +414,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve atualizar rotina de medicamento com sucesso")
     void deveAtualizarRotinaComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(rotinaMedicamentoRepository.save(any(RotinaMedicamento.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -466,8 +440,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve remover rotina de medicamento com sucesso")
     void deveRemoverRotinaComSucesso() {
-        when(usuarioRepository.findById(usuarioFamiliar.getId())).thenReturn(Optional.of(usuarioFamiliar));
-        when(familiarRepository.existsByUsuarioId(usuarioFamiliar.getId())).thenReturn(true);
+        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
 
         rotinaMedicamentoService.removerRotina(rotinaId, usuarioFamiliar);

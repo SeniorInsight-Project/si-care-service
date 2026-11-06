@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
-import com.seniorinsight.backendcore.model.Usuario;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -55,9 +54,8 @@ public class ConviteRede {
     @Column(name = "data_expiracao", nullable = false)
     private Instant dataExpiracao;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "criado_por_id")
-    private Usuario criadoPor;
+    @Column(name = "criado_por_sub", length = 64)
+    private String criadoPorSub;
 
     @Column(name = "criado_em", nullable = false, updatable = false)
     private Instant criadoEm;
@@ -70,7 +68,7 @@ public class ConviteRede {
 
     public ConviteRede(UUID id, Idoso idoso, String email, String token, String papelAcessoSugerido,
                        String grauParentescoSugerido, StatusConvite status, Instant dataExpiracao,
-                       Usuario criadoPor, Instant criadoEm, Instant atualizadoEm) {
+                       String criadoPorSub, Instant criadoEm, Instant atualizadoEm) {
         this.id = id;
         this.idoso = idoso;
         this.email = email;
@@ -79,7 +77,7 @@ public class ConviteRede {
         this.grauParentescoSugerido = grauParentescoSugerido;
         this.status = status != null ? status : StatusConvite.PENDENTE;
         this.dataExpiracao = dataExpiracao;
-        this.criadoPor = criadoPor;
+        this.criadoPorSub = criadoPorSub;
         this.criadoEm = criadoEm;
         this.atualizadoEm = atualizadoEm;
     }
@@ -218,12 +216,12 @@ public class ConviteRede {
         this.dataExpiracao = dataExpiracao;
     }
 
-    public Usuario getCriadoPor() {
-        return criadoPor;
+    public String getCriadoPorSub() {
+        return criadoPorSub;
     }
 
-    public void setCriadoPor(Usuario criadoPor) {
-        this.criadoPor = criadoPor;
+    public void setCriadoPorSub(String criadoPorSub) {
+        this.criadoPorSub = criadoPorSub;
     }
 
     public Instant getCriadoEm() {
@@ -257,7 +255,7 @@ public class ConviteRede {
         private String grauParentescoSugerido;
         private StatusConvite status = StatusConvite.PENDENTE;
         private Instant dataExpiracao;
-        private Usuario criadoPor;
+        private String criadoPorSub;
         private Instant criadoEm;
         private Instant atualizadoEm;
 
@@ -304,8 +302,8 @@ public class ConviteRede {
             return this;
         }
 
-        public ConviteRedeBuilder criadoPor(Usuario criadoPor) {
-            this.criadoPor = criadoPor;
+        public ConviteRedeBuilder criadoPorSub(String criadoPorSub) {
+            this.criadoPorSub = criadoPorSub;
             return this;
         }
 
@@ -321,7 +319,7 @@ public class ConviteRede {
 
         public ConviteRede build() {
             return new ConviteRede(id, idoso, email, token, papelAcessoSugerido, grauParentescoSugerido,
-                    status, dataExpiracao, criadoPor, criadoEm, atualizadoEm);
+                    status, dataExpiracao, criadoPorSub, criadoEm, atualizadoEm);
         }
     }
 }

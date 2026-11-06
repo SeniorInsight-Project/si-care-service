@@ -5,8 +5,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.seniorinsight.backendcore.model.Usuario;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -16,14 +14,13 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 
 /**
  * Entidade JPA para o perfil de Médico (HU-002 / DRS).
- * Possui vínculo 1:1 obrigatório com a conta do Usuário.
+ * Ligado ao usuário do Keycloak pela claim sub (keycloakSub).
  */
 @Entity
 @Table(name = "medicos")
@@ -33,9 +30,8 @@ public class Medico {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "usuario_id", referencedColumnName = "id", nullable = false, unique = true)
-    private Usuario usuario;
+    @Column(name = "keycloak_sub", nullable = false, unique = true, length = 64)
+    private String keycloakSub;
 
     @Column(name = "nome_completo", nullable = false)
     private String nomeCompleto;
@@ -72,10 +68,10 @@ public class Medico {
     public Medico() {
     }
 
-    public Medico(UUID id, Usuario usuario, String nomeCompleto, String crm, String especialidade,
+    public Medico(UUID id, String keycloakSub, String nomeCompleto, String crm, String especialidade,
                   String telefoneConsultorio, String nomeClinica, String cnpj) {
         this.id = id;
-        this.usuario = usuario;
+        this.keycloakSub = keycloakSub;
         this.nomeCompleto = nomeCompleto;
         this.crm = crm;
         this.especialidade = especialidade;
@@ -106,12 +102,12 @@ public class Medico {
         this.id = id;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public String getKeycloakSub() {
+        return keycloakSub;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setKeycloakSub(String keycloakSub) {
+        this.keycloakSub = keycloakSub;
     }
 
     public String getNomeCompleto() {
@@ -194,7 +190,7 @@ public class Medico {
 
     public static class MedicoBuilder {
         private UUID id;
-        private Usuario usuario;
+        private String keycloakSub;
         private String nomeCompleto;
         private String crm;
         private String especialidade;
@@ -210,8 +206,8 @@ public class Medico {
             return this;
         }
 
-        public MedicoBuilder usuario(Usuario usuario) {
-            this.usuario = usuario;
+        public MedicoBuilder keycloakSub(String keycloakSub) {
+            this.keycloakSub = keycloakSub;
             return this;
         }
 
@@ -246,7 +242,7 @@ public class Medico {
         }
 
         public Medico build() {
-            return new Medico(id, usuario, nomeCompleto, crm, especialidade, telefoneConsultorio, nomeClinica, cnpj);
+            return new Medico(id, keycloakSub, nomeCompleto, crm, especialidade, telefoneConsultorio, nomeClinica, cnpj);
         }
     }
 }

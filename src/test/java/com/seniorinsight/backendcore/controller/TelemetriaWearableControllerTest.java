@@ -1,5 +1,6 @@
 package com.seniorinsight.backendcore.controller;
 
+import java.util.Map;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +16,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -33,13 +36,10 @@ import com.seniorinsight.backendcore.dto.StepsDataDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
-import com.seniorinsight.backendcore.security.JwtAuthenticationFilter;
-import com.seniorinsight.backendcore.security.JwtService;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
 
 @WebMvcTest(controllers = TelemetriaWearableController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class TelemetriaWearableControllerTest {
 
     @Autowired
@@ -52,10 +52,7 @@ class TelemetriaWearableControllerTest {
     private WearableIntegrationService wearableIntegrationService;
 
     @MockBean
-    private JwtService jwtService;
-
-    @MockBean
-    private UsuarioRepository usuarioRepository;
+    private JwtDecoder jwtDecoder;
 
     private UUID idosoId;
     private UUID telemetriaId;
@@ -68,7 +65,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable - Sucesso 201 Created")
-    @WithMockUser
     void deveReceberTelemetriaComSucesso() throws Exception {
         HeartRateDataDTO heartRate = new HeartRateDataDTO(76, 62, 40.0);
         StepsDataDTO steps = new StepsDataDTO(3000, 2100.0, 120.0);
@@ -88,6 +84,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -100,7 +97,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable - Detecção de queda responde 202 Accepted")
-    @WithMockUser
     void deveResponder202AcceptedQuandoQuedaDetectada() throws Exception {
         FallDetectionDataDTO fall = new FallDetectionDataDTO(true, 4.5, 0.98, Instant.now());
         TelemetriaWearableRequestDTO request = new TelemetriaWearableRequestDTO(
@@ -118,6 +114,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isAccepted())
@@ -127,7 +124,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable/lote - Sincronização em lote responde 201 Created")
-    @WithMockUser
     void deveReceberTelemetriaLote() throws Exception {
         TelemetriaWearableRequestDTO t1 = new TelemetriaWearableRequestDTO(
                 idosoId, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(),
@@ -145,6 +141,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(List.of(responseDTO));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/lote", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(batchRequest)))
                 .andExpect(status().isCreated())
@@ -154,7 +151,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca - Sucesso 201 Created")
-    @WithMockUser
     void deveReceberFrequenciaCardiacaGranular() throws Exception {
         FrequenciaCardiacaRequestDTO req = new FrequenciaCardiacaRequestDTO(
                 idosoId, 72, 60, 48.0, Instant.now(), "dev-1", "Xiaomi Redmi Watch 4"
@@ -170,6 +166,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -178,7 +175,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable/passos - Sucesso 201 Created")
-    @WithMockUser
     void deveReceberPassosGranular() throws Exception {
         PassosRequestDTO req = new PassosRequestDTO(
                 idosoId, 6000, 4200.0, 250.0, Instant.now(), "dev-1", "Xiaomi Redmi Watch 4"
@@ -194,6 +190,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/passos", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated())
@@ -202,7 +199,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("POST /api/v1/idosos/{idosoId}/telemetria-wearable/deteccao-queda - Alerta responde 202 Accepted")
-    @WithMockUser
     void deveReceberDeteccaoQuedaGranular() throws Exception {
         DeteccaoQuedaRequestDTO req = new DeteccaoQuedaRequestDTO(
                 idosoId, true, 3.9, 0.91, Instant.now(), -23.55, -46.63, 70, "dev-1", "Xiaomi", "Queda"
@@ -218,6 +214,7 @@ class TelemetriaWearableControllerTest {
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/deteccao-queda", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isAccepted())
@@ -227,7 +224,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("GET /api/v1/idosos/{idosoId}/telemetria-wearable/ultimas - Retorna 200 OK com histórico")
-    @WithMockUser
     void deveConsultarUltimasTelemetrias() throws Exception {
         TelemetriaWearableResponseDTO r1 = new TelemetriaWearableResponseDTO(
                 telemetriaId, idosoId, "dev-1", "Watch", "OPEN_WEARABLES",
@@ -238,7 +234,8 @@ class TelemetriaWearableControllerTest {
         when(wearableIntegrationService.buscarUltimasTelemetrias(idosoId, 30))
                 .thenReturn(List.of(r1));
 
-        mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/ultimas", idosoId))
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/ultimas", idosoId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(telemetriaId.toString()))
                 .andExpect(jsonPath("$[0].frequencia_cardiaca_bpm").value(75));
@@ -246,7 +243,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("GET /api/v1/idosos/{idosoId}/telemetria-wearable/recente - Retorna 200 OK com última leitura")
-    @WithMockUser
     void deveConsultarUltimaLeitura() throws Exception {
         TelemetriaWearableResponseDTO r1 = new TelemetriaWearableResponseDTO(
                 telemetriaId, idosoId, "dev-1", "Watch", "OPEN_WEARABLES",
@@ -257,7 +253,8 @@ class TelemetriaWearableControllerTest {
         when(wearableIntegrationService.buscarUltimaLeitura(idosoId))
                 .thenReturn(r1);
 
-        mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/recente", idosoId))
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/recente", idosoId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(telemetriaId.toString()))
                 .andExpect(jsonPath("$.frequencia_cardiaca_bpm").value(82));
@@ -272,7 +269,6 @@ class TelemetriaWearableControllerTest {
 
     @Test
     @DisplayName("Rejeição 400 Bad Request se parâmetros forem inválidos")
-    @WithMockUser
     void deveRejeitarPayloadInvalido() throws Exception {
         // Frequência cardíaca inválida: BPM = 10 (mínimo permitido é 30)
         HeartRateDataDTO invalidHeartRate = new HeartRateDataDTO(10, null, null);
@@ -282,8 +278,15 @@ class TelemetriaWearableControllerTest {
         );
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());
+    }
+
+    private static JwtRequestPostProcessor tokenFamiliar() {
+        return jwt().jwt(j -> j.subject("sub-familiar")
+                .claim("email", "familiar@seniorinsight.com")
+                .claim("realm_access", Map.of("roles", List.of("familiar"))));
     }
 }

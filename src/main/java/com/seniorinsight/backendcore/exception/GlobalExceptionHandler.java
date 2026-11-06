@@ -24,36 +24,6 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidToken(InvalidTokenException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Token Inválido", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(CredenciaisInvalidasException.class)
-    public ResponseEntity<Map<String, Object>> handleCredenciaisInvalidas(CredenciaisInvalidasException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.UNAUTHORIZED, "Credenciais Inválidas", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(EmailJaCadastradoException.class)
-    public ResponseEntity<Map<String, Object>> handleEmailJaCadastrado(EmailJaCadastradoException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.CONFLICT, "E-mail Já Cadastrado", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(CpfJaCadastradoException.class)
-    public ResponseEntity<Map<String, Object>> handleCpfJaCadastrado(CpfJaCadastradoException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.CONFLICT, "CPF Já Cadastrado", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(CrmJaCadastradoException.class)
-    public ResponseEntity<Map<String, Object>> handleCrmJaCadastrado(CrmJaCadastradoException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.CONFLICT, "CRM Já Cadastrado", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(PerfilJaExistenteException.class)
-    public ResponseEntity<Map<String, Object>> handlePerfilJaExistente(PerfilJaExistenteException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.CONFLICT, "Perfil Já Existente", ex.getMessage(), request.getRequestURI());
-    }
-
     @ExceptionHandler(ComorbidadeJaCadastradaException.class)
     public ResponseEntity<Map<String, Object>> handleComorbidadeJaCadastrada(ComorbidadeJaCadastradaException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.CONFLICT, "Comorbidade Já Cadastrada", ex.getMessage(), request.getRequestURI());
@@ -107,11 +77,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AlarmeNaoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> handleAlarmeNaoEncontrado(AlarmeNaoEncontradoException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Alarme Não Encontrado", ex.getMessage(), request.getRequestURI());
-    }
-
-    @ExceptionHandler(RateLimitExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(RateLimitExceededException ex, HttpServletRequest request) {
-        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, "Muitas Requisições", ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

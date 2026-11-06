@@ -3,7 +3,6 @@ package com.seniorinsight.backendcore.controller;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,10 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.seniorinsight.backendcore.dto.ComorbidadeRequestDTO;
 import com.seniorinsight.backendcore.dto.ComorbidadesResponseDTO;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.ComorbidadeService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -79,7 +79,7 @@ public class ComorbidadeController {
     public ResponseEntity<ComorbidadesResponseDTO> adicionarComorbidades(
             @PathVariable UUID idosoId,
             @Valid @RequestBody ComorbidadeRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         ComorbidadesResponseDTO response = comorbidadeService.adicionarComorbidades(idosoId, request, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -115,7 +115,7 @@ public class ComorbidadeController {
     public ResponseEntity<Void> removerComorbidade(
             @PathVariable UUID idosoId,
             @PathVariable String nomeComorbidade,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         comorbidadeService.removerComorbidade(idosoId, nomeComorbidade, usuarioAutenticado);
         return ResponseEntity.noContent().build();
     }
@@ -147,7 +147,7 @@ public class ComorbidadeController {
     @GetMapping
     public ResponseEntity<ComorbidadesResponseDTO> listarComorbidades(
             @PathVariable UUID idosoId,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         ComorbidadesResponseDTO response = comorbidadeService.listarComorbidades(idosoId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

@@ -1,5 +1,6 @@
 package com.seniorinsight.backendcore.controller;
 
+import java.util.Map;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -18,7 +19,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -37,15 +40,10 @@ import com.seniorinsight.backendcore.dto.RotinaMedicamentoRequestDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
-import com.seniorinsight.backendcore.security.JwtAuthenticationFilter;
-import com.seniorinsight.backendcore.security.JwtService;
 import com.seniorinsight.backendcore.service.RotinaMedicamentoService;
 
 @WebMvcTest(controllers = RotinaMedicamentoController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class RotinaMedicamentoControllerTest {
 
     @Autowired
@@ -58,15 +56,11 @@ class RotinaMedicamentoControllerTest {
     private RotinaMedicamentoService rotinaMedicamentoService;
 
     @MockBean
-    private JwtService jwtService;
-
-    @MockBean
-    private UsuarioRepository usuarioRepository;
+    private JwtDecoder jwtDecoder;
 
     private UUID idosoId;
     private UUID rotinaId;
     private UUID medicamentoId;
-    private Usuario mockUsuario;
 
     @BeforeEach
     void setUp() {
@@ -74,14 +68,7 @@ class RotinaMedicamentoControllerTest {
         rotinaId = UUID.randomUUID();
         medicamentoId = UUID.randomUUID();
 
-        mockUsuario = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("familiar@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
 
-        when(jwtService.validateAndGetSubject(any())).thenReturn("familiar@seniorinsight.com");
-        when(usuarioRepository.findByEmail("familiar@seniorinsight.com")).thenReturn(Optional.of(mockUsuario));
     }
 
     // =========================================================================
@@ -102,7 +89,6 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("POST rotinas-medicamentos deve retornar 201 quando dados forem válidos")
     void deveCriarRotinaComSucesso() throws Exception {
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
@@ -135,6 +121,7 @@ class RotinaMedicamentoControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -146,7 +133,6 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("POST rotinas-medicamentos deve retornar 400 quando horário ou frequência forem omitidos")
     void deveRetornar400AoCriarRotinaComCamposObrigatoriosAusentes() throws Exception {
         // Horário nulo e frequência em branco
@@ -155,6 +141,7 @@ class RotinaMedicamentoControllerTest {
         );
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -163,7 +150,6 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("POST rotinas-medicamentos deve retornar 404 quando idoso não existir")
     void deveRetornar404AoCriarRotinaIdosoInexistente() throws Exception {
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
@@ -174,6 +160,7 @@ class RotinaMedicamentoControllerTest {
                 .thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -192,7 +179,6 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("GET rotinas-medicamentos deve retornar 200 com lista cronológica para React Native")
     void deveListarRotinasDiariasComSucesso() throws Exception {
         RotinaMedicamentoResponseDTO rotinaDTO = new RotinaMedicamentoResponseDTO(
@@ -221,6 +207,7 @@ class RotinaMedicamentoControllerTest {
                 .thenReturn(List.of(rotinaDTO));
 
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId)
+                        .with(tokenFamiliar())
                         .param("apenasAtivos", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(rotinaId.toString()))
@@ -241,7 +228,6 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("POST confirmar-ingestao deve retornar 201 com histórico e tolerância de 30 min validada")
     void deveConfirmarIngestaoComSucesso() throws Exception {
         ConfirmarIngestaoRequestDTO request = new ConfirmarIngestaoRequestDTO(
@@ -268,6 +254,7 @@ class RotinaMedicamentoControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/rotinas-medicamentos/{rotinaId}/confirmar-ingestao", rotinaId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
@@ -278,13 +265,13 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("POST confirmar-ingestao deve retornar 404 quando rotina não for encontrada")
     void deveRetornar404AoConfirmarIngestaoRotinaInexistente() throws Exception {
         when(rotinaMedicamentoService.confirmarIngestao(eq(rotinaId), any(), any()))
                 .thenThrow(new RotinaMedicamentoNaoEncontradaException(rotinaId));
 
-        mockMvc.perform(post("/api/v1/rotinas-medicamentos/{rotinaId}/confirmar-ingestao", rotinaId))
+        mockMvc.perform(post("/api/v1/rotinas-medicamentos/{rotinaId}/confirmar-ingestao", rotinaId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
     }
@@ -294,7 +281,6 @@ class RotinaMedicamentoControllerTest {
     // =========================================================================
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("GET rotinas-medicamentos/{rotinaId} deve retornar 200 quando encontrada")
     void deveObterRotinaPorIdComSucesso() throws Exception {
         RotinaMedicamentoResponseDTO response = new RotinaMedicamentoResponseDTO(
@@ -305,13 +291,13 @@ class RotinaMedicamentoControllerTest {
 
         when(rotinaMedicamentoService.obterRotinaPorId(eq(rotinaId), any())).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId))
+        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(rotinaId.toString()));
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("PUT rotinas-medicamentos/{rotinaId} deve retornar 200 ao atualizar")
     void deveAtualizarRotinaComSucesso() throws Exception {
         AtualizarRotinaRequestDTO request = new AtualizarRotinaRequestDTO(
@@ -327,6 +313,7 @@ class RotinaMedicamentoControllerTest {
         when(rotinaMedicamentoService.atualizarRotina(eq(rotinaId), any(), any())).thenReturn(response);
 
         mockMvc.perform(put("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -335,10 +322,16 @@ class RotinaMedicamentoControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "familiar@seniorinsight.com")
     @DisplayName("DELETE rotinas-medicamentos/{rotinaId} deve retornar 204")
     void deveRemoverRotinaComSucesso() throws Exception {
-        mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId))
+        mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isNoContent());
+    }
+
+    private static JwtRequestPostProcessor tokenFamiliar() {
+        return jwt().jwt(j -> j.subject("sub-familiar")
+                .claim("email", "familiar@seniorinsight.com")
+                .claim("realm_access", Map.of("roles", List.of("familiar"))));
     }
 }

@@ -13,8 +13,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,15 +30,14 @@ import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.MedicamentoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.security.UsuarioAutenticadoArgumentResolver;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.HistoricoMedicacaoRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicamentoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.RotinaMedicamentoRepository;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
 
 /**
  * Serviço de regras de negócio para a Rotina de Medicamentos (HU26).
@@ -59,7 +56,6 @@ public class RotinaMedicamentoService {
     private final MedicamentoRepository medicamentoRepository;
     private final HistoricoMedicacaoRepository historicoMedicacaoRepository;
     private final IdosoRepository idosoRepository;
-    private final UsuarioRepository usuarioRepository;
     private final FamiliarRepository familiarRepository;
     private final MedicoRepository medicoRepository;
 
@@ -68,14 +64,12 @@ public class RotinaMedicamentoService {
             MedicamentoRepository medicamentoRepository,
             HistoricoMedicacaoRepository historicoMedicacaoRepository,
             IdosoRepository idosoRepository,
-            UsuarioRepository usuarioRepository,
             FamiliarRepository familiarRepository,
             MedicoRepository medicoRepository) {
         this.rotinaMedicamentoRepository = rotinaMedicamentoRepository;
         this.medicamentoRepository = medicamentoRepository;
         this.historicoMedicacaoRepository = historicoMedicacaoRepository;
         this.idosoRepository = idosoRepository;
-        this.usuarioRepository = usuarioRepository;
         this.familiarRepository = familiarRepository;
         this.medicoRepository = medicoRepository;
     }
@@ -92,9 +86,9 @@ public class RotinaMedicamentoService {
     public RotinaMedicamentoResponseDTO criarRotina(
             UUID idosoId,
             RotinaMedicamentoRequestDTO request,
-            Usuario usuarioAutenticado) {
+            UsuarioAutenticado usuarioAutenticado) {
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
@@ -137,7 +131,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotinaSalva = rotinaMedicamentoRepository.save(rotina);
         log.info("Rotina de medicamento {} criada com sucesso para o idoso {} pelo usuário {}",
-                rotinaSalva.getId(), idosoId, usuario.getEmail());
+                rotinaSalva.getId(), idosoId, usuario.email());
 
         return mapearParaResponseDTO(rotinaSalva, LocalDate.now(FUSO_HORARIO_PADRAO));
     }
@@ -157,9 +151,9 @@ public class RotinaMedicamentoService {
             UUID idosoId,
             LocalDate dataReferencia,
             Boolean apenasAtivos,
-            Usuario usuarioAutenticado) {
+            UsuarioAutenticado usuarioAutenticado) {
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
@@ -200,9 +194,9 @@ public class RotinaMedicamentoService {
     public HistoricoMedicacaoResponseDTO confirmarIngestao(
             UUID rotinaId,
             ConfirmarIngestaoRequestDTO request,
-            Usuario usuarioAutenticado) {
+            UsuarioAutenticado usuarioAutenticado) {
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         if (rotinaId == null) {
@@ -262,7 +256,8 @@ public class RotinaMedicamentoService {
                 .dataHoraIngestao(dataHoraIngestao)
                 .dataHoraPrevista(dataHoraPrevista)
                 .observacao(observacao)
-                .registradoPor(usuario)
+                .registradoPorSub(usuario.keycloakSub())
+                .registradoPorNome(usuario.nome() != null ? usuario.nome() : usuario.email())
                 .build();
 
         HistoricoMedicacao historicoSalvo = historicoMedicacaoRepository.save(historico);
@@ -280,7 +275,7 @@ public class RotinaMedicamentoService {
                 dentroJanela,
                 diferencaMinutos,
                 historicoSalvo.getObservacao(),
-                usuario.getEmail(),
+                usuario.email(),
                 mensagemFeedback,
                 historicoSalvo.getCriadoEm()
         );
@@ -290,8 +285,8 @@ public class RotinaMedicamentoService {
      * Obtém uma rotina de medicamento específica por ID.
      */
     @Transactional(readOnly = true)
-    public RotinaMedicamentoResponseDTO obterRotinaPorId(UUID rotinaId, Usuario usuarioAutenticado) {
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+    public RotinaMedicamentoResponseDTO obterRotinaPorId(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
@@ -307,9 +302,9 @@ public class RotinaMedicamentoService {
     public RotinaMedicamentoResponseDTO atualizarRotina(
             UUID rotinaId,
             AtualizarRotinaRequestDTO request,
-            Usuario usuarioAutenticado) {
+            UsuarioAutenticado usuarioAutenticado) {
 
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         if (request == null) {
@@ -350,7 +345,7 @@ public class RotinaMedicamentoService {
         }
 
         RotinaMedicamento atualizada = rotinaMedicamentoRepository.save(rotina);
-        log.info("Rotina {} atualizada com sucesso pelo usuário {}", rotinaId, usuario.getId());
+        log.info("Rotina {} atualizada com sucesso pelo usuário {}", rotinaId, usuario.keycloakSub());
 
         return mapearParaResponseDTO(atualizada, LocalDate.now(FUSO_HORARIO_PADRAO));
     }
@@ -359,23 +354,23 @@ public class RotinaMedicamentoService {
      * Remove ou inativa uma rotina de medicamento.
      */
     @Transactional
-    public void removerRotina(UUID rotinaId, Usuario usuarioAutenticado) {
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+    public void removerRotina(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findById(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
 
         rotinaMedicamentoRepository.delete(rotina);
-        log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.getId());
+        log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.keycloakSub());
     }
 
     /**
      * Lista o histórico de ingestões registradas para uma rotina específica.
      */
     @Transactional(readOnly = true)
-    public List<HistoricoMedicacaoResponseDTO> listarHistoricoRotina(UUID rotinaId, Usuario usuarioAutenticado) {
-        Usuario usuario = resolverUsuarioAutenticado(usuarioAutenticado);
+    public List<HistoricoMedicacaoResponseDTO> listarHistoricoRotina(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
+        UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
         validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
@@ -389,7 +384,7 @@ public class RotinaMedicamentoService {
                             ? Duration.between(h.getDataHoraPrevista(), h.getDataHoraIngestao()).toMinutes()
                             : 0L;
                     boolean dentroJanela = h.getStatus() == StatusIngestao.TOMADO;
-                    String nomeUsuario = h.getRegistradoPor() != null ? h.getRegistradoPor().getEmail() : "Sistema";
+                    String nomeUsuario = h.getRegistradoPorNome() != null ? h.getRegistradoPorNome() : "Sistema";
 
                     return new HistoricoMedicacaoResponseDTO(
                             h.getId(),
@@ -482,43 +477,25 @@ public class RotinaMedicamentoService {
         );
     }
 
-    private void validarPerfilAutorizado(Usuario usuario) {
-        if (usuario == null || usuario.getId() == null) {
+    private void validarPerfilAutorizado(UsuarioAutenticado usuario) {
+        if (usuario == null || usuario.keycloakSub() == null) {
             throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar rotinas de medicamentos.");
         }
 
-        boolean ehFamiliar = familiarRepository.existsByUsuarioId(usuario.getId());
-        boolean ehMedico = medicoRepository.existsByUsuarioId(usuario.getId());
+        boolean ehFamiliar = familiarRepository.existsByKeycloakSub(usuario.keycloakSub());
+        boolean ehMedico = medicoRepository.existsByKeycloakSub(usuario.keycloakSub());
 
         if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou acessar rotinas de medicamentos sem perfil de Familiar ou Médico.", usuario.getId());
-            throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar rotinas de medicamentos.");
+            log.warn("Acesso negado: usuário {} tentou acessar rotinas de medicamentos sem perfil de Familiar ou Médico.", usuario.keycloakSub());
+            throw new PerfilNaoAutorizadoException("Perfil não encontrado para este usuário.");
         }
     }
 
-    private Usuario resolverUsuarioAutenticado(Usuario usuarioParam) {
-        if (usuarioParam != null && usuarioParam.getId() != null) {
-            return usuarioRepository.findById(usuarioParam.getId())
-                    .filter(u -> u.getStatus() == StatusUsuario.ATIVO)
-                    .orElse(usuarioParam);
+    private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {
+        UsuarioAutenticado usuario = usuarioParam != null ? usuarioParam : UsuarioAutenticadoArgumentResolver.atual();
+        if (usuario == null || usuario.keycloakSub() == null || usuario.keycloakSub().isBlank()) {
+            throw new PerfilNaoAutorizadoException("Usuário não autenticado. Forneça um token JWT válido.");
         }
-
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            if (authentication.getPrincipal() instanceof Usuario u && u.getId() != null) {
-                return usuarioRepository.findById(u.getId())
-                        .filter(user -> user.getStatus() == StatusUsuario.ATIVO)
-                        .orElse(u);
-            }
-
-            String email = authentication.getName();
-            if (email != null && !email.isBlank()) {
-                return usuarioRepository.findByEmail(email)
-                        .filter(u -> u.getStatus() == StatusUsuario.ATIVO)
-                        .orElseThrow(() -> new PerfilNaoAutorizadoException("Usuário autenticado não encontrado ou inativo no sistema."));
-            }
-        }
-
-        throw new PerfilNaoAutorizadoException("Usuário não autenticado. Forneça um token JWT válido.");
+        return usuario;
     }
 }

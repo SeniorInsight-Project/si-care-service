@@ -5,7 +5,6 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,10 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.seniorinsight.backendcore.dto.AlarmeEmergenciaResponseDTO;
 import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.AlarmeEmergenciaService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -75,7 +75,7 @@ public class AlarmeEmergenciaController {
     public ResponseEntity<AlarmeEmergenciaResponseDTO> dispararSos(
             @PathVariable UUID idosoId,
             @Valid @RequestBody(required = false) DispararSosRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.dispararAlarme(idosoId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
@@ -107,7 +107,7 @@ public class AlarmeEmergenciaController {
     public ResponseEntity<AlarmeEmergenciaResponseDTO> atualizarStatus(
             @PathVariable UUID alarmeId,
             @Valid @RequestBody AtualizarStatusAlarmeRequestDTO request,
-            @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.atualizarStatus(alarmeId, request, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

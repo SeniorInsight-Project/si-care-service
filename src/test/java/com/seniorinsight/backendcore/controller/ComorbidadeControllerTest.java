@@ -1,5 +1,6 @@
 package com.seniorinsight.backendcore.controller;
 
+import java.util.Map;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
@@ -19,7 +20,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,15 +38,10 @@ import com.seniorinsight.backendcore.exception.ComorbidadeJaCadastradaException;
 import com.seniorinsight.backendcore.exception.ComorbidadeNaoEncontradaException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
-import com.seniorinsight.backendcore.model.StatusUsuario;
-import com.seniorinsight.backendcore.model.Usuario;
-import com.seniorinsight.backendcore.repository.UsuarioRepository;
-import com.seniorinsight.backendcore.security.JwtAuthenticationFilter;
-import com.seniorinsight.backendcore.security.JwtService;
 import com.seniorinsight.backendcore.service.ComorbidadeService;
 
 @WebMvcTest(controllers = ComorbidadeController.class)
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class})
+@Import(SecurityConfig.class)
 class ComorbidadeControllerTest {
 
     @Autowired
@@ -56,25 +54,13 @@ class ComorbidadeControllerTest {
     private ComorbidadeService comorbidadeService;
 
     @MockBean
-    private JwtService jwtService;
-
-    @MockBean
-    private UsuarioRepository usuarioRepository;
+    private JwtDecoder jwtDecoder;
 
     private UUID idosoId;
-    private Usuario mockUsuario;
 
     @BeforeEach
     void setUp() {
         idosoId = UUID.randomUUID();
-        mockUsuario = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("usuario@seniorinsight.com")
-                .status(StatusUsuario.ATIVO)
-                .build();
-
-        when(jwtService.validateAndGetSubject(any())).thenReturn("usuario@seniorinsight.com");
-        when(usuarioRepository.findByEmail("usuario@seniorinsight.com")).thenReturn(Optional.of(mockUsuario));
     }
 
     // =========================================================================
@@ -93,7 +79,6 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("POST comorbidades deve retornar 200 e lista atualizada quando autenticado e autorizado")
     void deveAdicionarComorbidadesComSucesso() throws Exception {
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes Mellitus Tipo 2", "Hipertensão"));
@@ -107,6 +92,7 @@ class ComorbidadeControllerTest {
                 .thenReturn(response);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
@@ -116,12 +102,12 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("POST comorbidades deve retornar 400 quando lista de comorbidades for vazia (Jakarta Validation)")
     void deveRetornar400QuandoListaComorbidadesVazia() throws Exception {
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(Collections.emptyList());
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
@@ -129,7 +115,6 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("POST comorbidades deve retornar 403 quando usuário não possuir perfil autorizado")
     void deveRetornar403QuandoPerfilNaoAutorizado() throws Exception {
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Hipertensão"));
@@ -138,6 +123,7 @@ class ComorbidadeControllerTest {
                 .thenThrow(new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem alterar as comorbidades do idoso."));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden())
@@ -146,7 +132,6 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("POST comorbidades deve retornar 404 quando o idoso não for encontrado")
     void deveRetornar404QuandoIdosoNaoEncontrado() throws Exception {
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Hipertensão"));
@@ -155,6 +140,7 @@ class ComorbidadeControllerTest {
                 .thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
@@ -162,7 +148,6 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("POST comorbidades deve retornar 409 quando todas as comorbidades informadas já estiverem cadastradas")
     void deveRetornar409QuandoComorbidadeJaCadastrada() throws Exception {
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Hipertensão"));
@@ -171,6 +156,7 @@ class ComorbidadeControllerTest {
                 .thenThrow(new ComorbidadeJaCadastradaException("Todas as comorbidades informadas já estão cadastradas para este idoso."));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
@@ -182,25 +168,25 @@ class ComorbidadeControllerTest {
     // =========================================================================
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("DELETE comorbidade deve retornar 204 No Content ao remover comorbidade com sucesso")
     void deveRemoverComorbidadeComSucesso() throws Exception {
         ComorbidadesResponseDTO response = new ComorbidadesResponseDTO(idosoId, Collections.emptyList(), Instant.now());
         when(comorbidadeService.removerComorbidade(eq(idosoId), eq("Hipertensao"), any()))
                 .thenReturn(response);
 
-        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{nomeComorbidade}", idosoId, "Hipertensao"))
+        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{nomeComorbidade}", idosoId, "Hipertensao")
+                        .with(tokenFamiliar()))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("DELETE comorbidade deve retornar 404 quando comorbidade não existir no perfil do idoso")
     void deveRetornar404AoRemoverComorbidadeInexistente() throws Exception {
         doThrow(new ComorbidadeNaoEncontradaException("Asma"))
                 .when(comorbidadeService).removerComorbidade(eq(idosoId), eq("Asma"), any());
 
-        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{nomeComorbidade}", idosoId, "Asma"))
+        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{nomeComorbidade}", idosoId, "Asma")
+                        .with(tokenFamiliar()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Comorbidade Não Encontrada"));
     }
@@ -210,7 +196,6 @@ class ComorbidadeControllerTest {
     // =========================================================================
 
     @Test
-    @WithMockUser(username = "usuario@seniorinsight.com")
     @DisplayName("GET comorbidades deve retornar 200 e lista de comorbidades")
     void deveListarComorbidadesComSucesso() throws Exception {
         ComorbidadesResponseDTO response = new ComorbidadesResponseDTO(
@@ -221,9 +206,16 @@ class ComorbidadeControllerTest {
 
         when(comorbidadeService.listarComorbidades(eq(idosoId), any())).thenReturn(response);
 
-        mockMvc.perform(get("/api/v1/idosos/{idosoId}/comorbidades", idosoId))
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                        .with(tokenFamiliar()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.idosoId").value(idosoId.toString()))
                 .andExpect(jsonPath("$.comorbidades[0]").value("Hipertensão Arterial"));
+    }
+
+    private static JwtRequestPostProcessor tokenFamiliar() {
+        return jwt().jwt(j -> j.subject("sub-familiar")
+                .claim("email", "familiar@seniorinsight.com")
+                .claim("realm_access", Map.of("roles", List.of("familiar"))));
     }
 }

@@ -19,8 +19,8 @@ public record MembroRedeResponseDTO(
         @Schema(description = "Identificador único do perfil de familiar")
         UUID familiarId,
 
-        @Schema(description = "Identificador da conta de usuário associada")
-        UUID usuarioId,
+        @Schema(description = "Identificador do usuário no Keycloak (claim sub)")
+        String keycloakSub,
 
         @Schema(description = "Nome completo do familiar")
         String nomeCompleto,

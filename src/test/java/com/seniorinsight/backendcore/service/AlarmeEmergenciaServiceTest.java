@@ -29,7 +29,7 @@ import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
-import com.seniorinsight.backendcore.model.Usuario;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 
@@ -55,7 +55,7 @@ class AlarmeEmergenciaServiceTest {
     private UUID alarmeId;
     private Idoso mockIdoso;
     private AlarmeEmergencia mockAlarme;
-    private Usuario mockUsuario;
+    private UsuarioAutenticado mockUsuario;
 
     @BeforeEach
     void setUp() {
@@ -81,10 +81,7 @@ class AlarmeEmergenciaServiceTest {
                 .observacao("Disparo de emergência móvel")
                 .build();
 
-        mockUsuario = Usuario.builder()
-                .id(UUID.randomUUID())
-                .email("idoso@seniorinsight.com")
-                .build();
+        mockUsuario = new UsuarioAutenticado(UUID.randomUUID().toString(), "idoso@seniorinsight.com", null, List.of());
     }
 
     // =========================================================================
