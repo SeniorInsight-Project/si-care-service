@@ -51,7 +51,8 @@ class ConsumidorIntegracaoTest extends IntegracaoBase {
     }
 
     private void enviar(String messageId) {
-        Message mensagem = MessageBuilder.withBody("{}".getBytes(StandardCharsets.UTF_8))
+        Message mensagem = MessageBuilder.withBody(EventosDeTeste.userCreated(UUID.randomUUID().toString(), "FAMILIAR", "Ana")
+                        .getBytes(StandardCharsets.UTF_8))
                 .setContentType(MessageProperties.CONTENT_TYPE_JSON)
                 .setMessageId(messageId)
                 .build();
