@@ -5,12 +5,16 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.RabbitMQContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * Contexto completo com PostgreSQL e RabbitMQ reais (Testcontainers) e as migrações do Flyway aplicadas, como em
  * produção. Os containers sobem uma vez e servem a todas as classes que estendem esta.
+ *
+ * <p>Sem Docker na máquina, as classes são puladas em vez de falhar (o bloco estático só roda depois da condição).
  */
 @SpringBootTest
+@Testcontainers(disabledWithoutDocker = true)
 abstract class IntegracaoBase {
 
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17");
