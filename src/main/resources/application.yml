@@ -58,6 +58,12 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    rabbit:
+      # O healthcheck do Swarm chama /actuator/health. Com o RabbitMQ no health, uma queda do broker deixaria o
+      # care-service DOWN e o Swarm o reiniciaria em loop, derrubando SOS e telemetria. A outbox já tolera o broker
+      # fora do ar (o evento fica pendente), então ele não entra no health.
+      enabled: false
 
 # Configuração do Swagger OpenAPI
 springdoc:

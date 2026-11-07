@@ -1,0 +1,6 @@
+# Fins de linha sempre LF no repositório, independente do editor ou do SO.
+* text=auto eol=lf
+
+*.jar binary
+*.png binary
+*.jpg binary
