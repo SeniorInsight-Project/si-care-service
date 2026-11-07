@@ -18,6 +18,7 @@ import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
 import com.seniorinsight.backendcore.service.RedeProtecaoService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,9 +43,11 @@ import jakarta.validation.Valid;
 public class RedeProtecaoController {
 
     private final RedeProtecaoService redeProtecaoService;
+    private final AcessoIdosoService acessoIdosoService;
 
-    public RedeProtecaoController(RedeProtecaoService redeProtecaoService) {
+    public RedeProtecaoController(RedeProtecaoService redeProtecaoService, AcessoIdosoService acessoIdosoService) {
         this.redeProtecaoService = redeProtecaoService;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     @Operation(
@@ -84,6 +87,7 @@ public class RedeProtecaoController {
             @PathVariable UUID idosoId,
             @Valid @RequestBody ConviteRedeRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         ConviteRedeResponseDTO response = redeProtecaoService.gerarConvite(idosoId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -156,6 +160,7 @@ public class RedeProtecaoController {
     public ResponseEntity<List<MembroRedeResponseDTO>> listarMembrosRede(
             @PathVariable UUID idosoId,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         List<MembroRedeResponseDTO> response = redeProtecaoService.listarMembrosRede(idosoId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

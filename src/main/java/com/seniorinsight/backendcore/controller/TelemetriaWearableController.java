@@ -20,6 +20,7 @@ import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,9 +46,11 @@ import jakarta.validation.Valid;
 public class TelemetriaWearableController {
 
     private final WearableIntegrationService wearableIntegrationService;
+    private final AcessoIdosoService acessoIdosoService;
 
-    public TelemetriaWearableController(WearableIntegrationService wearableIntegrationService) {
+    public TelemetriaWearableController(WearableIntegrationService wearableIntegrationService, AcessoIdosoService acessoIdosoService) {
         this.wearableIntegrationService = wearableIntegrationService;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     @Operation(
@@ -75,6 +78,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody TelemetriaWearableRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, finalId);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(finalId, request);
 
         if ("ALERTA_QUEDA_DISPARADO".equals(response.statusProcessamento())) {
@@ -102,6 +106,7 @@ public class TelemetriaWearableController {
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody TelemetriaWearableBatchRequestDTO batchRequest,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        exigirVinculoComLote(usuarioAutenticado, idosoId, batchRequest);
         List<TelemetriaWearableResponseDTO> response = wearableIntegrationService.processarTelemetriaLote(idosoId, batchRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -126,6 +131,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody FrequenciaCardiacaRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, finalId);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarFrequenciaCardiaca(finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -150,6 +156,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody PassosRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, finalId);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarPassos(finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -174,6 +181,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody DeteccaoQuedaRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, finalId);
         TelemetriaWearableResponseDTO response = wearableIntegrationService.processarDeteccaoQueda(finalId, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
@@ -196,6 +204,7 @@ public class TelemetriaWearableController {
             @PathVariable UUID idosoId,
             @RequestParam(defaultValue = "30") int limite,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         List<TelemetriaWearableResponseDTO> leituras = wearableIntegrationService.buscarUltimasTelemetrias(idosoId, limite);
         return ResponseEntity.ok(leituras);
     }
@@ -217,10 +226,29 @@ public class TelemetriaWearableController {
     public ResponseEntity<TelemetriaWearableResponseDTO> buscarUltimaLeitura(
             @PathVariable UUID idosoId,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         TelemetriaWearableResponseDTO ultima = wearableIntegrationService.buscarUltimaLeitura(idosoId);
         if (ultima == null) {
             return ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(ultima);
+    }
+
+    /**
+     * Sem {@code idosoId} no path, cada leitura do lote traz o seu: exige vínculo com cada idoso distinto.
+     * Leitura sem {@code idosoId} cai no 400 do {@link AcessoIdosoService#exigirVinculo}.
+     */
+    private void exigirVinculoComLote(UsuarioAutenticado usuario, UUID idosoId, TelemetriaWearableBatchRequestDTO lote) {
+        if (idosoId != null) {
+            acessoIdosoService.exigirVinculo(usuario, idosoId);
+            return;
+        }
+        if (lote == null || lote.readings() == null) {
+            return;
+        }
+        lote.readings().stream()
+                .map(leitura -> leitura != null ? leitura.idosoId() : null)
+                .distinct()
+                .forEach(id -> acessoIdosoService.exigirVinculo(usuario, id));
     }
 }

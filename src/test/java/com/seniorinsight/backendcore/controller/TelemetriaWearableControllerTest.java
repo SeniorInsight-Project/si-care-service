@@ -37,6 +37,14 @@ import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 @WebMvcTest(controllers = TelemetriaWearableController.class)
 @Import(SecurityConfig.class)
@@ -53,6 +61,9 @@ class TelemetriaWearableControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private AcessoIdosoService acessoIdosoService;
 
     private UUID idosoId;
     private UUID telemetriaId;
@@ -282,6 +293,68 @@ class TelemetriaWearableControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // =========================================================================
+    // Vínculo com o idoso (issue #106)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 401 sem token")
+    void deveRetornar401SemTokenEmTodasAsRotasPorIdoso() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota).andExpect(status().isUnauthorized());
+        }
+        verifyNoInteractions(wearableIntegrationService);
+    }
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 403 para usuário fora da rede do idoso")
+    void deveRetornar403SemVinculoEmTodasAsRotasPorIdoso() throws Exception {
+        PerfilNaoAutorizadoException semVinculo = new PerfilNaoAutorizadoException("Você não tem vínculo com este idoso.");
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculo(any(), eq(idosoId));
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.message").value("Você não tem vínculo com este idoso."));
+        }
+        verifyNoInteractions(wearableIntegrationService);
+    }
+
+    @Test
+    @DisplayName("Com vínculo, todas as rotas por idoso conferem o vínculo com o idoso certo antes de responder")
+    void deveConferirVinculoComOIdosoDaRota() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()));
+        }
+        verify(acessoIdosoService, times(12)).exigirVinculo(any(UsuarioAutenticado.class), eq(idosoId));
+    }
+
+    private List<MockHttpServletRequestBuilder> rotasPorIdoso() throws Exception {
+        return List.of(
+                json(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId), leitura()),
+                json(post("/api/v1/telemetria-wearable/ingestao"), leitura()),
+                json(post("/api/v1/idosos/{idosoId}/telemetria-wearable/lote", idosoId), new TelemetriaWearableBatchRequestDTO(List.of(leitura()))),
+                json(post("/api/v1/telemetria-wearable/lote"), new TelemetriaWearableBatchRequestDTO(List.of(leitura(), leitura()))),
+                json(post("/api/v1/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca", idosoId), new FrequenciaCardiacaRequestDTO(idosoId, 72, 60, 48.0, Instant.now(), "dev-1", "Watch")),
+                json(post("/api/v1/telemetria-wearable/frequencia-cardiaca"), new FrequenciaCardiacaRequestDTO(idosoId, 72, 60, 48.0, Instant.now(), "dev-1", "Watch")),
+                json(post("/api/v1/idosos/{idosoId}/telemetria-wearable/passos", idosoId), new PassosRequestDTO(idosoId, 6000, 4200.0, 250.0, Instant.now(), "dev-1", "Watch")),
+                json(post("/api/v1/telemetria-wearable/passos"), new PassosRequestDTO(idosoId, 6000, 4200.0, 250.0, Instant.now(), "dev-1", "Watch")),
+                json(post("/api/v1/idosos/{idosoId}/telemetria-wearable/deteccao-queda", idosoId), new DeteccaoQuedaRequestDTO(idosoId, true, 3.9, 0.91, Instant.now(), -23.55, -46.63, 70, "dev-1", "Watch", "Queda")),
+                json(post("/api/v1/telemetria-wearable/deteccao-queda"), new DeteccaoQuedaRequestDTO(idosoId, true, 3.9, 0.91, Instant.now(), -23.55, -46.63, 70, "dev-1", "Watch", "Queda")),
+                get("/api/v1/idosos/{idosoId}/telemetria-wearable/ultimas", idosoId),
+                get("/api/v1/idosos/{idosoId}/telemetria-wearable/recente", idosoId)
+        );
+    }
+
+    private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder rota, Object corpo) throws Exception {
+        return rota.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(corpo));
+    }
+
+    private TelemetriaWearableRequestDTO leitura() {
+        return new TelemetriaWearableRequestDTO(idosoId, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(),
+                new HeartRateDataDTO(80, null, null), null, null, 90, null, null);
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

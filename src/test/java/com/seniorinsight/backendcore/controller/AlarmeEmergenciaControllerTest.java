@@ -35,6 +35,15 @@ import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.service.AlarmeEmergenciaService;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 @WebMvcTest(controllers = AlarmeEmergenciaController.class)
 @Import(SecurityConfig.class)
@@ -51,6 +60,9 @@ class AlarmeEmergenciaControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private AcessoIdosoService acessoIdosoService;
 
     private UUID idosoId;
     private UUID alarmeId;
@@ -195,6 +207,57 @@ class AlarmeEmergenciaControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Alarme Não Encontrado"));
+    }
+
+    // =========================================================================
+    // Vínculo com o idoso (issue #106)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 401 sem token")
+    void deveRetornar401SemTokenEmTodasAsRotasPorIdoso() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota).andExpect(status().isUnauthorized());
+        }
+        verifyNoInteractions(alarmeEmergenciaService);
+    }
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 403 para usuário fora da rede do idoso")
+    void deveRetornar403SemVinculoEmTodasAsRotasPorIdoso() throws Exception {
+        PerfilNaoAutorizadoException semVinculo = new PerfilNaoAutorizadoException("Você não tem vínculo com este idoso.");
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculo(any(), eq(idosoId));
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculoComAlarme(any(), eq(alarmeId));
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.message").value("Você não tem vínculo com este idoso."));
+        }
+        verifyNoInteractions(alarmeEmergenciaService);
+    }
+
+    @Test
+    @DisplayName("Com vínculo, todas as rotas por idoso conferem o vínculo com o idoso certo antes de responder")
+    void deveConferirVinculoComOIdosoDaRota() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()));
+        }
+        verify(acessoIdosoService, times(2)).exigirVinculo(any(UsuarioAutenticado.class), eq(idosoId));
+        verify(acessoIdosoService, times(2)).exigirVinculoComAlarme(any(UsuarioAutenticado.class), eq(alarmeId));
+    }
+
+    private List<MockHttpServletRequestBuilder> rotasPorIdoso() throws Exception {
+        return List.of(
+                json(post("/api/v1/idosos/{idosoId}/sos", idosoId), new DispararSosRequestDTO(-23.55, -46.63, 80, null)),
+                get("/api/v1/idosos/{idosoId}/sos", idosoId),
+                json(put("/api/v1/sos/{alarmeId}/status", alarmeId), new AtualizarStatusAlarmeRequestDTO(StatusAlarme.EM_ATENDIMENTO, null)),
+                get("/api/v1/sos/{alarmeId}", alarmeId)
+        );
+    }
+
+    private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder rota, Object corpo) throws Exception {
+        return rota.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(corpo));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

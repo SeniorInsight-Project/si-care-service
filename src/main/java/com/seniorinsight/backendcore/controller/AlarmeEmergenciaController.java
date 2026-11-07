@@ -17,6 +17,7 @@ import com.seniorinsight.backendcore.dto.AlarmeEmergenciaResponseDTO;
 import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
 import com.seniorinsight.backendcore.service.AlarmeEmergenciaService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,9 +43,11 @@ import jakarta.validation.Valid;
 public class AlarmeEmergenciaController {
 
     private final AlarmeEmergenciaService alarmeEmergenciaService;
+    private final AcessoIdosoService acessoIdosoService;
 
-    public AlarmeEmergenciaController(AlarmeEmergenciaService alarmeEmergenciaService) {
+    public AlarmeEmergenciaController(AlarmeEmergenciaService alarmeEmergenciaService, AcessoIdosoService acessoIdosoService) {
         this.alarmeEmergenciaService = alarmeEmergenciaService;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     @Operation(
@@ -67,6 +70,10 @@ public class AlarmeEmergenciaController {
                     description = "Token JWT ausente, inválido ou expirado."
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "Usuário fora da rede de proteção do idoso."
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "Idoso não encontrado na base de dados."
             )
@@ -76,6 +83,7 @@ public class AlarmeEmergenciaController {
             @PathVariable UUID idosoId,
             @Valid @RequestBody(required = false) DispararSosRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.dispararAlarme(idosoId, request, usuarioAutenticado);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
@@ -99,6 +107,10 @@ public class AlarmeEmergenciaController {
                     description = "Token JWT ausente, inválido ou expirado."
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "Usuário fora da rede de proteção do idoso."
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "Alarme de emergência não encontrado."
             )
@@ -108,6 +120,7 @@ public class AlarmeEmergenciaController {
             @PathVariable UUID alarmeId,
             @Valid @RequestBody AtualizarStatusAlarmeRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculoComAlarme(usuarioAutenticado, alarmeId);
         AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.atualizarStatus(alarmeId, request, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -127,12 +140,19 @@ public class AlarmeEmergenciaController {
                     description = "Token JWT ausente, inválido ou expirado."
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "Usuário fora da rede de proteção do idoso."
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "Alarme de emergência não encontrado."
             )
     })
     @GetMapping("/sos/{alarmeId}")
-    public ResponseEntity<AlarmeEmergenciaResponseDTO> buscarPorId(@PathVariable UUID alarmeId) {
+    public ResponseEntity<AlarmeEmergenciaResponseDTO> buscarPorId(
+            @PathVariable UUID alarmeId,
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculoComAlarme(usuarioAutenticado, alarmeId);
         AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.buscarPorId(alarmeId);
         return ResponseEntity.ok(response);
     }
@@ -152,12 +172,19 @@ public class AlarmeEmergenciaController {
                     description = "Token JWT ausente, inválido ou expirado."
             ),
             @ApiResponse(
+                    responseCode = "403",
+                    description = "Usuário fora da rede de proteção do idoso."
+            ),
+            @ApiResponse(
                     responseCode = "404",
                     description = "Idoso não encontrado."
             )
     })
     @GetMapping("/idosos/{idosoId}/sos")
-    public ResponseEntity<List<AlarmeEmergenciaResponseDTO>> listarPorIdoso(@PathVariable UUID idosoId) {
+    public ResponseEntity<List<AlarmeEmergenciaResponseDTO>> listarPorIdoso(
+            @PathVariable UUID idosoId,
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         List<AlarmeEmergenciaResponseDTO> response = alarmeEmergenciaService.listarPorIdoso(idosoId);
         return ResponseEntity.ok(response);
     }

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.seniorinsight.backendcore.dto.ComorbidadeRequestDTO;
 import com.seniorinsight.backendcore.dto.ComorbidadesResponseDTO;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
 import com.seniorinsight.backendcore.service.ComorbidadeService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -37,9 +38,11 @@ import jakarta.validation.Valid;
 public class ComorbidadeController {
 
     private final ComorbidadeService comorbidadeService;
+    private final AcessoIdosoService acessoIdosoService;
 
-    public ComorbidadeController(ComorbidadeService comorbidadeService) {
+    public ComorbidadeController(ComorbidadeService comorbidadeService, AcessoIdosoService acessoIdosoService) {
         this.comorbidadeService = comorbidadeService;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     @Operation(
@@ -80,6 +83,7 @@ public class ComorbidadeController {
             @PathVariable UUID idosoId,
             @Valid @RequestBody ComorbidadeRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         ComorbidadesResponseDTO response = comorbidadeService.adicionarComorbidades(idosoId, request, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }
@@ -116,6 +120,7 @@ public class ComorbidadeController {
             @PathVariable UUID idosoId,
             @PathVariable String nomeComorbidade,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         comorbidadeService.removerComorbidade(idosoId, nomeComorbidade, usuarioAutenticado);
         return ResponseEntity.noContent().build();
     }
@@ -148,6 +153,7 @@ public class ComorbidadeController {
     public ResponseEntity<ComorbidadesResponseDTO> listarComorbidades(
             @PathVariable UUID idosoId,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        acessoIdosoService.exigirVinculo(usuarioAutenticado, idosoId);
         ComorbidadesResponseDTO response = comorbidadeService.listarComorbidades(idosoId, usuarioAutenticado);
         return ResponseEntity.ok(response);
     }

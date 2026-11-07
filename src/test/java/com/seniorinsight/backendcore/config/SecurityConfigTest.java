@@ -34,13 +34,18 @@ import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.service.ComorbidadeService;
+import static org.mockito.Mockito.verifyNoInteractions;
+import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
+import com.seniorinsight.backendcore.repository.RotinaMedicamentoRepository;
+import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
 
 /**
  * Resource server do Keycloak de ponta a ponta na camada web: o filtro de segurança, o
  * {@link com.seniorinsight.backendcore.security.UsuarioAutenticado} injetado no controller e a busca do perfil pelo sub.
  */
 @WebMvcTest(controllers = ComorbidadeController.class)
-@Import({SecurityConfig.class, ComorbidadeService.class})
+@Import({SecurityConfig.class, ComorbidadeService.class, AcessoIdosoService.class})
 class SecurityConfigTest {
 
     private static final String SUB_FAMILIAR = "f3c1a9e2-6b7d-4c1e-9a0b-2d5e8f7a1c34";
@@ -60,6 +65,15 @@ class SecurityConfigTest {
 
     @MockBean
     private MedicoRepository medicoRepository;
+
+    @MockBean
+    private VinculoRedeRepository vinculoRedeRepository;
+
+    @MockBean
+    private AlarmeEmergenciaRepository alarmeEmergenciaRepository;
+
+    @MockBean
+    private RotinaMedicamentoRepository rotinaMedicamentoRepository;
 
     @Test
     @DisplayName("Sem token responde 401 com o corpo JSON padrão")
@@ -81,19 +95,21 @@ class SecurityConfigTest {
     }
 
     @Test
-    @DisplayName("Token válido sem perfil de Familiar ou Médico responde 403")
-    void tokenValidoSemPerfilResponde403() throws Exception {
-        when(familiarRepository.existsByKeycloakSub(SUB_FAMILIAR)).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(SUB_FAMILIAR)).thenReturn(false);
+    @DisplayName("Token válido de quem não é da rede do idoso responde 403 sem consultar o idoso")
+    void tokenValidoForaDaRedeDoIdosoResponde403() throws Exception {
+        UUID idosoId = UUID.randomUUID();
+        when(familiarRepository.existsByKeycloakSub(SUB_FAMILIAR)).thenReturn(true);
 
-        mockMvc.perform(get(URL, UUID.randomUUID()).with(tokenFamiliar()))
+        mockMvc.perform(get(URL, idosoId).with(tokenFamiliar()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Perfil não encontrado para este usuário."));
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.message").value("Você não tem vínculo com este idoso."));
+        verifyNoInteractions(idosoRepository);
     }
 
     @Test
-    @DisplayName("Token de familiar com perfil chega ao endpoint e responde 200")
-    void tokenDeFamiliarComPerfilResponde200() throws Exception {
+    @DisplayName("Token de familiar da rede do idoso chega ao endpoint e responde 200")
+    void tokenDeFamiliarDaRedeResponde200() throws Exception {
         UUID idosoId = UUID.randomUUID();
         Idoso idoso = Idoso.builder()
                 .id(idosoId)
@@ -101,6 +117,7 @@ class SecurityConfigTest {
                 .comorbidades(new ArrayList<>(List.of("Hipertensão")))
                 .build();
         when(familiarRepository.existsByKeycloakSub(SUB_FAMILIAR)).thenReturn(true);
+        when(vinculoRedeRepository.existsByFamiliar_KeycloakSubAndIdoso_Id(SUB_FAMILIAR, idosoId)).thenReturn(true);
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
 
         mockMvc.perform(get(URL, idosoId).with(tokenFamiliar()))

@@ -38,6 +38,14 @@ import com.seniorinsight.backendcore.exception.ConviteExpiradoException;
 import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.service.RedeProtecaoService;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 @WebMvcTest(controllers = RedeProtecaoController.class)
 @Import(SecurityConfig.class)
@@ -54,6 +62,9 @@ class RedeProtecaoControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private AcessoIdosoService acessoIdosoService;
 
     private UUID idosoId;
 
@@ -242,6 +253,53 @@ class RedeProtecaoControllerTest {
                         .with(tokenFamiliar()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+    }
+
+    // =========================================================================
+    // Vínculo com o idoso (issue #106)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 401 sem token")
+    void deveRetornar401SemTokenEmTodasAsRotasPorIdoso() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota).andExpect(status().isUnauthorized());
+        }
+        verifyNoInteractions(redeProtecaoService);
+    }
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 403 para usuário fora da rede do idoso")
+    void deveRetornar403SemVinculoEmTodasAsRotasPorIdoso() throws Exception {
+        PerfilNaoAutorizadoException semVinculo = new PerfilNaoAutorizadoException("Você não tem vínculo com este idoso.");
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculo(any(), eq(idosoId));
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.message").value("Você não tem vínculo com este idoso."));
+        }
+        verifyNoInteractions(redeProtecaoService);
+    }
+
+    @Test
+    @DisplayName("Com vínculo, todas as rotas por idoso conferem o vínculo com o idoso certo antes de responder")
+    void deveConferirVinculoComOIdosoDaRota() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()));
+        }
+        verify(acessoIdosoService, times(2)).exigirVinculo(any(UsuarioAutenticado.class), eq(idosoId));
+    }
+
+    private List<MockHttpServletRequestBuilder> rotasPorIdoso() throws Exception {
+        return List.of(
+                json(post("/api/v1/idosos/{idosoId}/convites", idosoId), new ConviteRedeRequestDTO("convidado@email.com", "FAMILIAR", "Filho", null)),
+                get("/api/v1/idosos/{idosoId}/rede", idosoId)
+        );
+    }
+
+    private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder rota, Object corpo) throws Exception {
+        return rota.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(corpo));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

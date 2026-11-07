@@ -15,6 +15,8 @@ public interface MedicoRepository extends JpaRepository<Medico, UUID> {
 
     boolean existsByKeycloakSub(String keycloakSub);
 
+    boolean existsByKeycloakSubAndIdosos_Id(String keycloakSub, UUID idosoId);
+
     boolean existsByCrm(String crm);
 
     Optional<Medico> findByCrm(String crm);

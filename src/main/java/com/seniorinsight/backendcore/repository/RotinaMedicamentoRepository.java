@@ -26,4 +26,7 @@ public interface RotinaMedicamentoRepository extends JpaRepository<RotinaMedicam
 
     @Query("SELECT r FROM RotinaMedicamento r JOIN FETCH r.medicamento JOIN FETCH r.idoso WHERE r.id = :id")
     Optional<RotinaMedicamento> findByIdWithDetails(@Param("id") UUID id);
+
+    @Query("SELECT x.idoso.id FROM RotinaMedicamento x WHERE x.id = :id")
+    Optional<UUID> findIdosoIdById(@Param("id") UUID id);
 }

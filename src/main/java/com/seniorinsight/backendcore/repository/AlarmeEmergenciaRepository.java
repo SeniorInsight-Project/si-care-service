@@ -25,4 +25,7 @@ public interface AlarmeEmergenciaRepository extends JpaRepository<AlarmeEmergenc
     Optional<AlarmeEmergencia> findFirstByIdosoIdAndStatusOrderByCriadoEmDesc(@Param("idosoId") UUID idosoId, @Param("status") StatusAlarme status);
 
     List<AlarmeEmergencia> findByStatusOrderByCriadoEmDesc(StatusAlarme status);
+
+    @Query("SELECT x.idoso.id FROM AlarmeEmergencia x WHERE x.id = :id")
+    Optional<UUID> findIdosoIdById(@Param("id") UUID id);
 }

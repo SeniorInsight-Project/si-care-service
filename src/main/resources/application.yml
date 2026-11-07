@@ -51,6 +51,9 @@ springdoc:
     operationsSorter: method
 
 seniorinsight:
+  idoso:
+    # Domínio do e-mail técnico do usuário do idoso no Keycloak (idoso-<idosoId>@<dominio>), o mesmo do si-identity-service.
+    dominio-email: ${KEYCLOAK_DOMINIO_EMAIL_IDOSO:idoso.seniorinsight.invalid}
   integrations:
     llm:
       openai:

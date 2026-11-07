@@ -41,6 +41,14 @@ import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
 import com.seniorinsight.backendcore.service.RotinaMedicamentoService;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.service.AcessoIdosoService;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 @WebMvcTest(controllers = RotinaMedicamentoController.class)
 @Import(SecurityConfig.class)
@@ -57,6 +65,9 @@ class RotinaMedicamentoControllerTest {
 
     @MockBean
     private JwtDecoder jwtDecoder;
+
+    @MockBean
+    private AcessoIdosoService acessoIdosoService;
 
     private UUID idosoId;
     private UUID rotinaId;
@@ -327,6 +338,60 @@ class RotinaMedicamentoControllerTest {
         mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId)
                         .with(tokenFamiliar()))
                 .andExpect(status().isNoContent());
+    }
+
+    // =========================================================================
+    // Vínculo com o idoso (issue #106)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 401 sem token")
+    void deveRetornar401SemTokenEmTodasAsRotasPorIdoso() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota).andExpect(status().isUnauthorized());
+        }
+        verifyNoInteractions(rotinaMedicamentoService);
+    }
+
+    @Test
+    @DisplayName("Todas as rotas por idoso respondem 403 para usuário fora da rede do idoso")
+    void deveRetornar403SemVinculoEmTodasAsRotasPorIdoso() throws Exception {
+        PerfilNaoAutorizadoException semVinculo = new PerfilNaoAutorizadoException("Você não tem vínculo com este idoso.");
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculo(any(), eq(idosoId));
+        doThrow(semVinculo).when(acessoIdosoService).exigirVinculoComRotina(any(), eq(rotinaId));
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.status").value(403))
+                    .andExpect(jsonPath("$.message").value("Você não tem vínculo com este idoso."));
+        }
+        verifyNoInteractions(rotinaMedicamentoService);
+    }
+
+    @Test
+    @DisplayName("Com vínculo, todas as rotas por idoso conferem o vínculo com o idoso certo antes de responder")
+    void deveConferirVinculoComOIdosoDaRota() throws Exception {
+        for (MockHttpServletRequestBuilder rota : rotasPorIdoso()) {
+            mockMvc.perform(rota.with(tokenFamiliar()));
+        }
+        verify(acessoIdosoService, times(2)).exigirVinculo(any(UsuarioAutenticado.class), eq(idosoId));
+        verify(acessoIdosoService, times(5)).exigirVinculoComRotina(any(UsuarioAutenticado.class), eq(rotinaId));
+    }
+
+    private List<MockHttpServletRequestBuilder> rotasPorIdoso() throws Exception {
+        return List.of(
+                json(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId), new RotinaMedicamentoRequestDTO(null, "Losartana", "50mg", null, LocalTime.of(8, 0), "Diário", null, null, null, null)),
+                get("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId),
+                json(post("/api/v1/rotinas-medicamentos/{rotinaId}/confirmar-ingestao", rotinaId), new ConfirmarIngestaoRequestDTO(Instant.now(), LocalDate.now(), null, null)),
+                get("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId),
+                json(put("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId), new AtualizarRotinaRequestDTO(LocalTime.of(9, 0), "Diário", "TODOS", null, null, true, null, null, null)),
+                delete("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId),
+                get("/api/v1/rotinas-medicamentos/{rotinaId}/historico", rotinaId)
+        );
+    }
+
+    private MockHttpServletRequestBuilder json(MockHttpServletRequestBuilder rota, Object corpo) throws Exception {
+        return rota.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(corpo));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {
