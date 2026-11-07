@@ -17,6 +17,10 @@ spring:
       hibernate:
         format_sql: true
 
+  rabbitmq:
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}

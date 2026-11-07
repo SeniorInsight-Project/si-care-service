@@ -11,6 +11,23 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        # Falhou depois das tentativas: não volta para a fila, vai para a care.dlq.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+
   data:
     redis:
       repositories:
@@ -49,6 +66,13 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     operationsSorter: method
+
+care:
+  outbox:
+    relay:
+      intervalo: PT1S
+      tamanho-lote: 100
+      timeout-confirmacao: PT5S
 
 seniorinsight:
   integrations:
