@@ -9,6 +9,20 @@ spring:
       ddl-auto: create-drop
   flyway:
     enabled: false
+  rabbitmq:
+    username: guest
+    password: guest
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+        # Os testes de unidade e de web não sobem broker; os de integração ligam o listener.
+        auto-startup: false
   data:
     redis:
       repositories:
@@ -19,3 +33,10 @@ spring:
         jwt:
           # Nunca é consultado: os testes injetam o JWT com SecurityMockMvcRequestPostProcessors.jwt().
           issuer-uri: http://localhost:8180/realms/seniorinsight
+
+care:
+  outbox:
+    relay:
+      intervalo: PT1S
+      tamanho-lote: 100
+      timeout-confirmacao: PT5S
