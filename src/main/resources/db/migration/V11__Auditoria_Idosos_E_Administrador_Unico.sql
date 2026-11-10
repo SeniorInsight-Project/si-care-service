@@ -1,5 +1,5 @@
 -- ==============================================================================
--- Migração V10: auditoria da edição do idoso (HU-009) e administrador único (RN-012)
+-- Migração V11: auditoria da edição do idoso (HU-009) e administrador único (RN-012)
 --   - auditoria_idosos: quem alterou o cadastro, quando, e os valores antes e depois
 --   - índice parcial: cada idoso tem no máximo um vínculo ADMINISTRADOR
 -- ==============================================================================
