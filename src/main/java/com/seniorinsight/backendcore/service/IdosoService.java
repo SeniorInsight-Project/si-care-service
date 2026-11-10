@@ -25,6 +25,7 @@ import com.seniorinsight.backendcore.domain.VinculoRede;
 import com.seniorinsight.backendcore.dto.IdosoRequestDTO;
 import com.seniorinsight.backendcore.dto.IdosoResponseDTO;
 import com.seniorinsight.backendcore.exception.CpfJaCadastradoException;
+import com.seniorinsight.backendcore.exception.FamiliarNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.repository.AuditoriaIdosoRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
@@ -108,6 +109,33 @@ public class IdosoService {
         idosoRepository.findByFamiliarKeycloakSub(usuario.keycloakSub()).forEach(i -> idosos.put(i.getId(), i));
         idosoRepository.findByMedicoKeycloakSub(usuario.keycloakSub()).forEach(i -> idosos.put(i.getId(), i));
         return idosos.values().stream()
+                .sorted((a, b) -> a.getNomeCompleto().compareToIgnoreCase(b.getNomeCompleto()))
+                .map(this::resposta)
+                .toList();
+    }
+
+    /**
+     * Idosos de um familiar específico. O próprio familiar vê todos os seus; outro Familiar vê só os idosos que ele
+     * administra. Quem não é nem um nem outro recebe 403. {@code familiarId} é o id do Familiar no care-service ou
+     * o {@code sub} do Keycloak dele.
+     */
+    @Transactional(readOnly = true)
+    public List<IdosoResponseDTO> listarDoFamiliar(UsuarioAutenticado usuario, UUID familiarId) {
+        Familiar alvo = familiarRepository.findById(familiarId)
+                .or(() -> familiarRepository.findByKeycloakSub(familiarId.toString()))
+                .orElseThrow(() -> new FamiliarNaoEncontradoException(familiarId));
+
+        List<Idoso> idosos;
+        if (alvo.getKeycloakSub().equals(usuario.keycloakSub())) {
+            idosos = idosoRepository.findByFamiliarKeycloakSub(alvo.getKeycloakSub());
+        } else {
+            idosos = idosoRepository.findDoFamiliarAdministradosPor(alvo.getKeycloakSub(), usuario.keycloakSub());
+            if (idosos.isEmpty()) {
+                throw new PerfilNaoAutorizadoException(
+                        "Só o próprio familiar ou um Familiar Administrador do idoso pode consultar esta lista.");
+            }
+        }
+        return idosos.stream()
                 .sorted((a, b) -> a.getNomeCompleto().compareToIgnoreCase(b.getNomeCompleto()))
                 .map(this::resposta)
                 .toList();
