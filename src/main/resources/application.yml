@@ -81,6 +81,10 @@ care:
       timeout-confirmacao: PT5S
 
 seniorinsight:
+  idoso:
+    dominio-email: ${KEYCLOAK_DOMINIO_EMAIL_IDOSO:idoso.seniorinsight.invalid}
+  consentimento:
+    versao-termo: ${CONSENTIMENTO_VERSAO_TERMO:v1}
   integrations:
     llm:
       openai:

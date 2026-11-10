@@ -2,6 +2,17 @@
 
 O **backend-core** é o serviço central da plataforma de saúde **SeniorInsight**, desenvolvido em **Java 21** e **Spring Boot 3.5**, responsável pela lógica de negócios, segurança, integrações e persistência de dados.
 
+## Consentimento
+
+`GET` e `PUT /api/v1/idosos/{idosoId}/consentimentos` seguem o `care-v1`.
+A rota lê e altera as autorizações da rede familiar. Os cinco tipos começam
+desligados. O titular usa o token do aparelho pareado. Um familiar precisa ter
+vínculo e uma curatela ativa registrada em `curatelas_idoso` pela operação autorizada.
+
+Configure `CONSENTIMENTO_VERSAO_TERMO` para a versão do termo em uso e mantenha
+`KEYCLOAK_DOMINIO_EMAIL_IDOSO` igual ao do identity-service. Cada mudança é
+gravada no histórico junto com o evento `consent.changed` na outbox.
+
 ---
 
 ## 🛠️ Tecnologias e Ferramentas
