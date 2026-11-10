@@ -24,6 +24,16 @@ public interface IdosoRepository extends JpaRepository<Idoso, UUID> {
     @Query("SELECT v.idoso FROM VinculoRede v WHERE v.familiar.keycloakSub = :sub")
     List<Idoso> findByFamiliarKeycloakSub(@Param("sub") String sub);
 
+    /** Idosos do familiar {@code alvo} em que o familiar {@code autor} é Administrador. */
+    @Query("""
+            SELECT v.idoso FROM VinculoRede v
+            WHERE v.familiar.keycloakSub = :alvo
+              AND EXISTS (SELECT 1 FROM VinculoRede a
+                          WHERE a.idoso = v.idoso AND a.familiar.keycloakSub = :autor
+                            AND a.papelAcesso = 'ADMINISTRADOR')
+            """)
+    List<Idoso> findDoFamiliarAdministradosPor(@Param("alvo") String alvo, @Param("autor") String autor);
+
     /** Idosos acompanhados pelo médico. */
     @Query("SELECT i FROM Idoso i JOIN i.medicos m WHERE m.keycloakSub = :sub")
     List<Idoso> findByMedicoKeycloakSub(@Param("sub") String sub);

@@ -78,6 +78,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Idoso Não Encontrado", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(FamiliarNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleFamiliarNaoEncontrado(FamiliarNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Familiar Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(RotinaMedicamentoNaoEncontradaException.class)
     public ResponseEntity<Map<String, Object>> handleRotinaMedicamentoNaoEncontrada(RotinaMedicamentoNaoEncontradaException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Rotina de Medicamento Não Encontrada", ex.getMessage(), request.getRequestURI());
