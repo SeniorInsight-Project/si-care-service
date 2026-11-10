@@ -15,18 +15,15 @@ import com.seniorinsight.backendcore.dto.ComorbidadeRequestDTO;
 import com.seniorinsight.backendcore.dto.ComorbidadesResponseDTO;
 import com.seniorinsight.backendcore.exception.ComorbidadeJaCadastradaException;
 import com.seniorinsight.backendcore.exception.ComorbidadeNaoEncontradaException;
-import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.security.UsuarioAutenticadoArgumentResolver;
-import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
-import com.seniorinsight.backendcore.repository.MedicoRepository;
 
 /**
  * Serviço de regras de negócio para a gestão de comorbidades do Idoso (HU15).
  * Manipula a coluna JSONB nativa da entidade Idoso garantindo validações de negócio,
- * controle de acesso baseado nos perfis autorizados (Familiar ou Médico) e consistência de dados.
+ * controle de acesso pelo vínculo com o idoso (rede de proteção ou médico, via AcessoIdosoService) e consistência de dados.
  */
 @Service
 public class ComorbidadeService {
@@ -34,16 +31,11 @@ public class ComorbidadeService {
     private static final Logger log = LoggerFactory.getLogger(ComorbidadeService.class);
 
     private final IdosoRepository idosoRepository;
-    private final FamiliarRepository familiarRepository;
-    private final MedicoRepository medicoRepository;
+    private final AcessoIdosoService acessoIdosoService;
 
-    public ComorbidadeService(
-            IdosoRepository idosoRepository,
-            FamiliarRepository familiarRepository,
-            MedicoRepository medicoRepository) {
+    public ComorbidadeService(IdosoRepository idosoRepository, AcessoIdosoService acessoIdosoService) {
         this.idosoRepository = idosoRepository;
-        this.familiarRepository = familiarRepository;
-        this.medicoRepository = medicoRepository;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     /**
@@ -57,21 +49,17 @@ public class ComorbidadeService {
     @Transactional
     public ComorbidadesResponseDTO adicionarComorbidades(UUID idosoId, ComorbidadeRequestDTO request, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
+        // Familiar com vínculo ou médico do idoso (403 sem vínculo, 404 se o idoso não existe)
+        Idoso idoso = acessoIdosoService.exigirVinculo(usuario, idosoId);
+
         if (request == null || request.comorbidades() == null || request.comorbidades().isEmpty()) {
             throw new IllegalArgumentException("A lista de comorbidades não pode estar vazia.");
         }
-
-        Idoso idoso = idosoRepository.findById(idosoId)
-                .orElseThrow(() -> {
-                    log.warn("Tentativa de adicionar comorbidades para idoso inexistente: {}", idosoId);
-                    return new IdosoNaoEncontradoException(idosoId);
-                });
 
         List<String> listaAtual = idoso.getComorbidades();
         if (listaAtual == null) {
@@ -126,21 +114,17 @@ public class ComorbidadeService {
     @Transactional
     public ComorbidadesResponseDTO removerComorbidade(UUID idosoId, String nomeComorbidade, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
+        // Familiar com vínculo ou médico do idoso (403 sem vínculo, 404 se o idoso não existe)
+        Idoso idoso = acessoIdosoService.exigirVinculo(usuario, idosoId);
+
         if (nomeComorbidade == null || nomeComorbidade.trim().isBlank()) {
             throw new IllegalArgumentException("O nome da comorbidade para remoção não pode ser nulo ou vazio.");
         }
-
-        Idoso idoso = idosoRepository.findById(idosoId)
-                .orElseThrow(() -> {
-                    log.warn("Tentativa de remover comorbidade para idoso inexistente: {}", idosoId);
-                    return new IdosoNaoEncontradoException(idosoId);
-                });
 
         List<String> listaAtual = idoso.getComorbidades();
         if (listaAtual == null || listaAtual.isEmpty()) {
@@ -176,39 +160,19 @@ public class ComorbidadeService {
     @Transactional(readOnly = true)
     public ComorbidadesResponseDTO listarComorbidades(UUID idosoId, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
-        Idoso idoso = idosoRepository.findById(idosoId)
-                .orElseThrow(() -> new IdosoNaoEncontradoException(idosoId));
+        // Rede, médico do idoso ou o próprio idoso pelo aparelho pareado (403 sem vínculo, 404 se não existe)
+        Idoso idoso = acessoIdosoService.exigirLeitura(usuario, idosoId);
 
         List<String> comorbidades = idoso.getComorbidades() != null
                 ? Collections.unmodifiableList(idoso.getComorbidades())
                 : Collections.emptyList();
 
         return new ComorbidadesResponseDTO(idoso.getId(), comorbidades, idoso.getAtualizadoEm());
-    }
-
-    /**
-     * Valida se o usuário autenticado possui perfil de Familiar ou Médico.
-     * Caso não possua, bloqueia o acesso lançando PerfilNaoAutorizadoException (HTTP 403).
-     */
-    private void validarPerfilAutorizado(UsuarioAutenticado usuario) {
-        if (usuario == null || usuario.keycloakSub() == null) {
-            throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem alterar as comorbidades do idoso.");
-        }
-
-        boolean ehFamiliar = familiarRepository.existsByKeycloakSub(usuario.keycloakSub());
-        boolean ehMedico = medicoRepository.existsByKeycloakSub(usuario.keycloakSub());
-
-        if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} (ID: {}) tentou manipular comorbidades sem perfil de Familiar ou Médico.",
-                    usuario.email(), usuario.keycloakSub());
-            throw new PerfilNaoAutorizadoException("Perfil não encontrado para este usuário.");
-        }
     }
 
     private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {

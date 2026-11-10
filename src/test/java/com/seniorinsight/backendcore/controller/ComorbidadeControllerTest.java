@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -211,6 +212,42 @@ class ComorbidadeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.idosoId").value(idosoId.toString()))
                 .andExpect(jsonPath("$.comorbidades[0]").value("Hipertensão Arterial"));
+    }
+
+    // =========================================================================
+    // Autorização por idoso: sem token (401) e sem vínculo (403) em todas as rotas
+    // =========================================================================
+
+    @Test
+    @DisplayName("As três rotas de comorbidades respondem 401 sem token e não chegam ao serviço")
+    void todasAsRotasRetornam401SemToken() throws Exception {
+        String corpo = objectMapper.writeValueAsString(new ComorbidadeRequestDTO(List.of("Hipertensão")));
+
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/comorbidades", idosoId)
+                .contentType(MediaType.APPLICATION_JSON).content(corpo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/comorbidades", idosoId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{n}", idosoId, "Asma"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(comorbidadeService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, GET e DELETE respondem 403 com o Erro do contrato")
+    void getEDeleteRetornam403SemVinculo() throws Exception {
+        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        when(comorbidadeService.listarComorbidades(eq(idosoId), any())).thenThrow(foraDaRede);
+        doThrow(foraDaRede).when(comorbidadeService).removerComorbidade(eq(idosoId), eq("Asma"), any());
+
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/comorbidades", idosoId).with(tokenFamiliar()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/comorbidades"));
+        mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{n}", idosoId, "Asma").with(tokenFamiliar()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Acesso Proibido"));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {
