@@ -19,7 +19,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -40,8 +42,6 @@ import com.seniorinsight.backendcore.exception.VinculoJaExistenteException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.ConviteRedeRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
-import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,13 +54,10 @@ class RedeProtecaoServiceTest {
     private VinculoRedeRepository vinculoRedeRepository;
 
     @Mock
-    private IdosoRepository idosoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @Mock
     private FamiliarRepository familiarRepository;
-
-    @Mock
-    private MedicoRepository medicoRepository;
 
     @Mock
     private SimuladorEmailService simuladorEmailService;
@@ -105,10 +102,7 @@ class RedeProtecaoServiceTest {
     void deveGerarConviteComSucesso() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", "Olá!");
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
-        when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(conviteRedeRepository.findByIdosoIdAndEmailAndStatus(idosoId, "neta@seniorinsight.com", StatusConvite.PENDENTE))
                 .thenReturn(Optional.empty());
 
@@ -143,7 +137,7 @@ class RedeProtecaoServiceTest {
     void deveLancarIdosoNaoEncontradoAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
                 .isInstanceOf(IdosoNaoEncontradoException.class);
@@ -154,10 +148,7 @@ class RedeProtecaoServiceTest {
     void deveLancarVinculoJaExistenteAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
-        when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(familiarRepository.findByEmailIgnoreCase("neta@seniorinsight.com")).thenReturn(Optional.of(familiarConvidado));
         when(vinculoRedeRepository.existsByFamiliarAndIdoso(familiarConvidado, idoso)).thenReturn(true);
 
@@ -260,8 +251,6 @@ class RedeProtecaoServiceTest {
                 .restricoesAcesso(new HashMap<>())
                 .build();
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(vinculoRedeRepository.findByIdosoIdWithFamiliar(idosoId)).thenReturn(List.of(vinculo));
 
         List<MembroRedeResponseDTO> membros = redeProtecaoService.listarMembrosRede(idosoId, usuarioFamiliar);
@@ -273,5 +262,35 @@ class RedeProtecaoServiceTest {
         assertThat(dto.email()).isEqualTo("filho@seniorinsight.com");
         assertThat(dto.grauParentesco()).isEqualTo("Filho");
         assertThat(dto.papelAcesso()).isEqualTo("CUIDADOR_PRINCIPAL");
+    }
+
+    // =========================================================================
+    // Autorização por idoso (sem vínculo com o idoso)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, gerar convite é negado: nada é gravado e nenhum e-mail é simulado")
+    void semVinculoNaoGeraConvite() {
+        ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(conviteRedeRepository, never()).save(any());
+        verifyNoInteractions(simuladorEmailService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, listar a rede é negado e a rede não é consultada")
+    void semVinculoNaoListaRede() {
+        when(acessoIdosoService.exigirLeitura(usuarioFamiliar, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> redeProtecaoService.listarMembrosRede(idosoId, usuarioFamiliar))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(vinculoRedeRepository, never()).findByIdosoIdWithFamiliar(any());
     }
 }

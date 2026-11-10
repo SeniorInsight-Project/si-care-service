@@ -145,7 +145,7 @@ public class RedeProtecaoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil autorizado (Familiar ou Médico)."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha este idoso."
             ),
             @ApiResponse(
                     responseCode = "404",

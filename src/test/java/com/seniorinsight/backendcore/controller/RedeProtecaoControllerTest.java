@@ -12,6 +12,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -37,6 +38,7 @@ import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
 import com.seniorinsight.backendcore.exception.ConviteExpiradoException;
 import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.service.RedeProtecaoService;
 
 @WebMvcTest(controllers = RedeProtecaoController.class)
@@ -242,6 +244,42 @@ class RedeProtecaoControllerTest {
                         .with(tokenFamiliar()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+    }
+
+    // =========================================================================
+    // Autorização por idoso: sem token (401) e sem vínculo (403)
+    // =========================================================================
+
+    private static final String CONVITE = "{\"email\":\"neta@seniorinsight.com\",\"papelAcesso\":\"FAMILIAR\",\"grauParentesco\":\"Neta\"}";
+
+    @Test
+    @DisplayName("As rotas de convite e de rede do idoso respondem 401 sem token e não chegam ao serviço")
+    void rotasPorIdosoRetornam401SemToken() throws Exception {
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/convites", idosoId)
+                .contentType(MediaType.APPLICATION_JSON).content(CONVITE)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/rede", idosoId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/convites/aceitar").param("token", "abc")).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(redeProtecaoService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, gerar convite e listar a rede respondem 403 com o Erro do contrato")
+    void rotasPorIdosoRetornam403SemVinculo() throws Exception {
+        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        when(redeProtecaoService.gerarConvite(eq(idosoId), any(), any())).thenThrow(foraDaRede);
+        when(redeProtecaoService.listarMembrosRede(eq(idosoId), any())).thenThrow(foraDaRede);
+
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/convites", idosoId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content(CONVITE))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/convites"));
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/rede", idosoId).with(tokenFamiliar()))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Acesso Proibido"));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {
