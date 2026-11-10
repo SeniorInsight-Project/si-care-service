@@ -43,8 +43,9 @@ import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.TelemetriaWearableRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,7 +58,7 @@ class WearableIntegrationServiceTest {
     private TelemetriaWearableRepository telemetriaRepository;
 
     @Mock
-    private IdosoRepository idosoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @Mock
     private AlarmeEmergenciaRepository alarmeEmergenciaRepository;
@@ -73,10 +74,12 @@ class WearableIntegrationServiceTest {
 
     private UUID idosoId;
     private Idoso mockIdoso;
+    private UsuarioAutenticado usuario;
 
     @BeforeEach
     void setUp() {
         idosoId = UUID.randomUUID();
+        usuario = new UsuarioAutenticado("sub-aparelho", "aparelho@seniorinsight.com", null, List.of("idoso"));
         mockIdoso = new Idoso();
         mockIdoso.setId(idosoId);
         mockIdoso.setNomeCompleto("Dona Maria Silva");
@@ -103,7 +106,7 @@ class WearableIntegrationServiceTest {
                 null
         );
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(invocation -> {
             TelemetriaWearable t = invocation.getArgument(0);
             t.setId(UUID.randomUUID());
@@ -111,7 +114,7 @@ class WearableIntegrationServiceTest {
             return t;
         });
 
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(idosoId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(usuario, idosoId, request);
 
         assertThat(response).isNotNull();
         assertThat(response.idosoId()).isEqualTo(idosoId);
@@ -144,7 +147,7 @@ class WearableIntegrationServiceTest {
                 null
         );
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(invocation -> {
             TelemetriaWearable t = invocation.getArgument(0);
             t.setId(UUID.randomUUID());
@@ -158,7 +161,7 @@ class WearableIntegrationServiceTest {
             return new AlarmeEmergencia(alarmeId, mockIdoso, null, null, 65, StatusAlarme.DISPARADO, "Queda");
         });
 
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(idosoId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(usuario, idosoId, request);
 
         assertThat(response).isNotNull();
         assertThat(response.quedaDetectada()).isTrue();
@@ -177,9 +180,9 @@ class WearableIntegrationServiceTest {
                 Instant.now(), null, null, null, 80, 97.0, null
         );
 
-        when(idosoRepository.findById(inexistente)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirLeitura(usuario, inexistente)).thenThrow(new IdosoNaoEncontradoException(inexistente));
 
-        assertThatThrownBy(() -> wearableIntegrationService.processarTelemetria(inexistente, request))
+        assertThatThrownBy(() -> wearableIntegrationService.processarTelemetria(usuario, inexistente, request))
                 .isInstanceOf(IdosoNaoEncontradoException.class);
 
         verify(telemetriaRepository, never()).save(any());
@@ -198,7 +201,7 @@ class WearableIntegrationServiceTest {
         );
         TelemetriaWearableBatchRequestDTO batch = new TelemetriaWearableBatchRequestDTO(List.of(t1, t2));
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(inv -> {
             TelemetriaWearable tw = inv.getArgument(0);
             tw.setId(UUID.randomUUID());
@@ -206,7 +209,7 @@ class WearableIntegrationServiceTest {
             return tw;
         });
 
-        List<TelemetriaWearableResponseDTO> resultado = wearableIntegrationService.processarTelemetriaLote(idosoId, batch);
+        List<TelemetriaWearableResponseDTO> resultado = wearableIntegrationService.processarTelemetriaLote(usuario, idosoId, batch);
 
         assertThat(resultado).hasSize(2);
         verify(telemetriaRepository, org.mockito.Mockito.times(2)).save(any(TelemetriaWearable.class));
@@ -219,7 +222,7 @@ class WearableIntegrationServiceTest {
                 idosoId, 85, 68, 50.0, Instant.now(), "dev-1", "Xiaomi Redmi Watch 4"
         );
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(inv -> {
             TelemetriaWearable tw = inv.getArgument(0);
             tw.setId(UUID.randomUUID());
@@ -227,7 +230,7 @@ class WearableIntegrationServiceTest {
             return tw;
         });
 
-        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarFrequenciaCardiaca(idosoId, req);
+        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarFrequenciaCardiaca(usuario, idosoId, req);
 
         assertThat(resp).isNotNull();
         assertThat(resp.frequenciaCardiacaBpm()).isEqualTo(85);
@@ -241,7 +244,7 @@ class WearableIntegrationServiceTest {
                 idosoId, 5200, 3700.0, 220.0, Instant.now(), "dev-1", "Xiaomi Redmi Watch 4"
         );
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(inv -> {
             TelemetriaWearable tw = inv.getArgument(0);
             tw.setId(UUID.randomUUID());
@@ -249,7 +252,7 @@ class WearableIntegrationServiceTest {
             return tw;
         });
 
-        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarPassos(idosoId, req);
+        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarPassos(usuario, idosoId, req);
 
         assertThat(resp).isNotNull();
         assertThat(resp.passosContagem()).isEqualTo(5200);
@@ -263,7 +266,7 @@ class WearableIntegrationServiceTest {
                 idosoId, true, 4.0, 0.96, Instant.now(), -23.55, -46.63, 75, "dev-1", "Redmi", "Queda na sala"
         );
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(inv -> {
             TelemetriaWearable tw = inv.getArgument(0);
             tw.setId(UUID.randomUUID());
@@ -275,7 +278,7 @@ class WearableIntegrationServiceTest {
             return new AlarmeEmergencia(UUID.randomUUID(), mockIdoso, -23.55, -46.63, 75, StatusAlarme.DISPARADO, "Queda na sala");
         });
 
-        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarDeteccaoQueda(idosoId, req);
+        TelemetriaWearableResponseDTO resp = wearableIntegrationService.processarDeteccaoQueda(usuario, idosoId, req);
 
         assertThat(resp).isNotNull();
         assertThat(resp.quedaDetectada()).isTrue();
@@ -296,14 +299,14 @@ class WearableIntegrationServiceTest {
                 .criadoEm(Instant.now())
                 .build();
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
         when(telemetriaRepository.findByIdosoIdOrderByColetadoEmDesc(eq(idosoId), any(Pageable.class)))
                 .thenReturn(List.of(t1));
         when(telemetriaRepository.findTopByIdosoIdOrderByColetadoEmDesc(idosoId))
                 .thenReturn(Optional.of(t1));
 
-        List<TelemetriaWearableResponseDTO> historico = wearableIntegrationService.buscarUltimasTelemetrias(idosoId, 10);
-        TelemetriaWearableResponseDTO recente = wearableIntegrationService.buscarUltimaLeitura(idosoId);
+        List<TelemetriaWearableResponseDTO> historico = wearableIntegrationService.buscarUltimasTelemetrias(usuario, idosoId, 10);
+        TelemetriaWearableResponseDTO recente = wearableIntegrationService.buscarUltimaLeitura(usuario, idosoId);
 
         assertThat(historico).hasSize(1);
         assertThat(recente).isNotNull();
@@ -348,5 +351,89 @@ class WearableIntegrationServiceTest {
         wearableIntegrationService.despacharParaOpenWearables(payload);
 
         verify(restTemplate).postForEntity(any(String.class), any(HttpEntity.class), eq(Void.class));
+    }
+
+    // =========================================================================
+    // Autorização por idoso
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, nenhuma operação de telemetria grava ou consulta nada")
+    void semVinculoNegaTodasAsOperacoes() {
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+        TelemetriaWearableRequestDTO consolidada = new TelemetriaWearableRequestDTO(
+                idosoId, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(), null, null, null, 90, 99.0, null);
+
+        assertThatThrownBy(() -> wearableIntegrationService.processarTelemetria(usuario, idosoId, consolidada))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.processarTelemetriaLote(usuario, idosoId,
+                new TelemetriaWearableBatchRequestDTO(List.of(consolidada))))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.processarFrequenciaCardiaca(usuario, idosoId, null))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.processarPassos(usuario, idosoId, null))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.processarDeteccaoQueda(usuario, idosoId, null))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.buscarUltimasTelemetrias(usuario, idosoId, 10))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> wearableIntegrationService.buscarUltimaLeitura(usuario, idosoId))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(telemetriaRepository, never()).save(any());
+        verify(alarmeEmergenciaRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+        verify(telemetriaRepository, never()).findByIdosoIdOrderByColetadoEmDesc(any(), any());
+        verify(telemetriaRepository, never()).findTopByIdosoIdOrderByColetadoEmDesc(any());
+    }
+
+    @Test
+    @DisplayName("Sem idoso na rota, o lote checa o vínculo de cada idoso citado e não grava nada se um deles for negado")
+    void loteSemIdosoNaRotaChecaCadaIdoso() {
+        UUID outroIdoso = UUID.randomUUID();
+        TelemetriaWearableRequestDTO doMeu = new TelemetriaWearableRequestDTO(
+                idosoId, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(), null, null, null, 90, 99.0, null);
+        TelemetriaWearableRequestDTO doOutro = new TelemetriaWearableRequestDTO(
+                outroIdoso, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(), null, null, null, 90, 99.0, null);
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
+        when(acessoIdosoService.exigirLeitura(usuario, outroIdoso))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> wearableIntegrationService.processarTelemetriaLote(usuario, null,
+                new TelemetriaWearableBatchRequestDTO(List.of(doMeu, doOutro))))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(telemetriaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("O lote checa o vínculo uma vez por idoso, não uma vez por leitura")
+    void loteChecaUmaVezPorIdoso() {
+        TelemetriaWearableRequestDTO leitura = new TelemetriaWearableRequestDTO(
+                idosoId, "dev-1", "Watch", "OPEN_WEARABLES", Instant.now(), null, null, null, 90, 99.0, null);
+        when(acessoIdosoService.exigirLeitura(usuario, idosoId)).thenReturn(mockIdoso);
+        when(telemetriaRepository.save(any(TelemetriaWearable.class))).thenAnswer(inv -> {
+            TelemetriaWearable tw = inv.getArgument(0);
+            tw.setId(UUID.randomUUID());
+            tw.setCriadoEm(Instant.now());
+            return tw;
+        });
+
+        wearableIntegrationService.processarTelemetriaLote(usuario, null,
+                new TelemetriaWearableBatchRequestDTO(List.of(leitura, leitura, leitura)));
+
+        verify(acessoIdosoService, org.mockito.Mockito.times(1)).exigirLeitura(usuario, idosoId);
+        verify(telemetriaRepository, org.mockito.Mockito.times(3)).save(any(TelemetriaWearable.class));
+    }
+
+    @Test
+    @DisplayName("Sem idoso na rota nem no corpo, responde 400 antes de consultar o vínculo")
+    void semIdosoEmLugarNenhum() {
+        assertThatThrownBy(() -> wearableIntegrationService.processarFrequenciaCardiaca(usuario, null,
+                new FrequenciaCardiacaRequestDTO(null, 72, null, null, Instant.now(), "dev-1", "Watch")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        org.mockito.Mockito.verifyNoInteractions(acessoIdosoService);
     }
 }
