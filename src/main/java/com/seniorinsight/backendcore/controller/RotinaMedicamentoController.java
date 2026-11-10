@@ -74,7 +74,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -107,7 +107,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -147,7 +147,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -179,7 +179,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -214,7 +214,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -245,7 +245,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -276,7 +276,7 @@ public class RotinaMedicamentoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha o idoso dono da rotina."
             ),
             @ApiResponse(
                     responseCode = "404",

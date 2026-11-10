@@ -26,17 +26,13 @@ import com.seniorinsight.backendcore.dto.ConfirmarIngestaoRequestDTO;
 import com.seniorinsight.backendcore.dto.HistoricoMedicacaoResponseDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoRequestDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
-import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.MedicamentoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.security.UsuarioAutenticadoArgumentResolver;
-import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.HistoricoMedicacaoRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicamentoRepository;
-import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.RotinaMedicamentoRepository;
 
 /**
@@ -55,23 +51,17 @@ public class RotinaMedicamentoService {
     private final RotinaMedicamentoRepository rotinaMedicamentoRepository;
     private final MedicamentoRepository medicamentoRepository;
     private final HistoricoMedicacaoRepository historicoMedicacaoRepository;
-    private final IdosoRepository idosoRepository;
-    private final FamiliarRepository familiarRepository;
-    private final MedicoRepository medicoRepository;
+    private final AcessoIdosoService acessoIdosoService;
 
     public RotinaMedicamentoService(
             RotinaMedicamentoRepository rotinaMedicamentoRepository,
             MedicamentoRepository medicamentoRepository,
             HistoricoMedicacaoRepository historicoMedicacaoRepository,
-            IdosoRepository idosoRepository,
-            FamiliarRepository familiarRepository,
-            MedicoRepository medicoRepository) {
+            AcessoIdosoService acessoIdosoService) {
         this.rotinaMedicamentoRepository = rotinaMedicamentoRepository;
         this.medicamentoRepository = medicamentoRepository;
         this.historicoMedicacaoRepository = historicoMedicacaoRepository;
-        this.idosoRepository = idosoRepository;
-        this.familiarRepository = familiarRepository;
-        this.medicoRepository = medicoRepository;
+        this.acessoIdosoService = acessoIdosoService;
     }
 
     /**
@@ -89,11 +79,14 @@ public class RotinaMedicamentoService {
             UsuarioAutenticado usuarioAutenticado) {
 
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
+
+        // Familiar com vínculo ou médico do idoso (403 sem vínculo, 404 se o idoso não existe)
+        Idoso idoso = acessoIdosoService.exigirVinculo(usuario, idosoId);
+
         if (request == null) {
             throw new IllegalArgumentException("Os dados da rotina de medicamentos não podem ser nulos.");
         }
@@ -103,12 +96,6 @@ public class RotinaMedicamentoService {
         if (request.frequencia() == null || request.frequencia().isBlank()) {
             throw new IllegalArgumentException("A frequência da rotina é obrigatória.");
         }
-
-        Idoso idoso = idosoRepository.findById(idosoId)
-                .orElseThrow(() -> {
-                    log.warn("Tentativa de criar rotina para idoso inexistente: {}", idosoId);
-                    return new IdosoNaoEncontradoException(idosoId);
-                });
 
         Medicamento medicamento = resolverMedicamento(request);
 
@@ -154,16 +141,13 @@ public class RotinaMedicamentoService {
             UsuarioAutenticado usuarioAutenticado) {
 
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
-        if (!idosoRepository.existsById(idosoId)) {
-            log.warn("Tentativa de listar rotinas para idoso inexistente: {}", idosoId);
-            throw new IdosoNaoEncontradoException(idosoId);
-        }
+        // Rede, médico do idoso ou o próprio idoso pelo aparelho pareado (403 sem vínculo, 404 se não existe)
+        acessoIdosoService.exigirLeitura(usuario, idosoId);
 
         LocalDate dataAlvo = dataReferencia != null ? dataReferencia : LocalDate.now(FUSO_HORARIO_PADRAO);
         Boolean filtroAtivo = (apenasAtivos != null) ? apenasAtivos : true;
@@ -197,7 +181,6 @@ public class RotinaMedicamentoService {
             UsuarioAutenticado usuarioAutenticado) {
 
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (rotinaId == null) {
             throw new IllegalArgumentException("O identificador da rotina não pode ser nulo.");
@@ -208,6 +191,8 @@ public class RotinaMedicamentoService {
                     log.warn("Tentativa de confirmar ingestão para rotina inexistente: {}", rotinaId);
                     return new RotinaMedicamentoNaoEncontradaException(rotinaId);
                 });
+        // O aparelho do idoso confirma a própria medicação; a rede e o médico também podem registrar
+        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
 
         Instant dataHoraIngestao = (request != null && request.dataHoraIngestao() != null)
                 ? request.dataHoraIngestao()
@@ -287,10 +272,10 @@ public class RotinaMedicamentoService {
     @Transactional(readOnly = true)
     public RotinaMedicamentoResponseDTO obterRotinaPorId(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
+        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
 
         return mapearParaResponseDTO(rotina, LocalDate.now(FUSO_HORARIO_PADRAO));
     }
@@ -305,7 +290,6 @@ public class RotinaMedicamentoService {
             UsuarioAutenticado usuarioAutenticado) {
 
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         if (request == null) {
             throw new IllegalArgumentException("Os dados de atualização não podem ser nulos.");
@@ -313,6 +297,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
+        acessoIdosoService.exigirVinculo(usuario, rotina.getIdoso().getId());
 
         if (request.horario() != null) {
             rotina.setHorario(request.horario());
@@ -356,10 +341,10 @@ public class RotinaMedicamentoService {
     @Transactional
     public void removerRotina(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findById(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
+        acessoIdosoService.exigirVinculo(usuario, rotina.getIdoso().getId());
 
         rotinaMedicamentoRepository.delete(rotina);
         log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.keycloakSub());
@@ -371,10 +356,10 @@ public class RotinaMedicamentoService {
     @Transactional(readOnly = true)
     public List<HistoricoMedicacaoResponseDTO> listarHistoricoRotina(UUID rotinaId, UsuarioAutenticado usuarioAutenticado) {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
-        validarPerfilAutorizado(usuario);
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
+        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
 
         List<HistoricoMedicacao> historicos = historicoMedicacaoRepository.findByRotinaIdOrderByDataHoraIngestaoDesc(rotinaId);
 
@@ -475,20 +460,6 @@ public class RotinaMedicamentoService {
                 rotina.getCriadoEm(),
                 rotina.getAtualizadoEm()
         );
-    }
-
-    private void validarPerfilAutorizado(UsuarioAutenticado usuario) {
-        if (usuario == null || usuario.keycloakSub() == null) {
-            throw new PerfilNaoAutorizadoException("Apenas perfis autorizados (Familiar ou Médico) podem gerenciar rotinas de medicamentos.");
-        }
-
-        boolean ehFamiliar = familiarRepository.existsByKeycloakSub(usuario.keycloakSub());
-        boolean ehMedico = medicoRepository.existsByKeycloakSub(usuario.keycloakSub());
-
-        if (!ehFamiliar && !ehMedico) {
-            log.warn("Acesso negado: usuário {} tentou acessar rotinas de medicamentos sem perfil de Familiar ou Médico.", usuario.keycloakSub());
-            throw new PerfilNaoAutorizadoException("Perfil não encontrado para este usuário.");
-        }
     }
 
     private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {
