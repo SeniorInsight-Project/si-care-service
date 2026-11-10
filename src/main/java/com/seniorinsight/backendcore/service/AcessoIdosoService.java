@@ -34,8 +34,11 @@ public class AcessoIdosoService {
     }
 
     /**
-     * Leitura: além de quem {@link #exigirVinculo} aceita, o próprio idoso, usando o token do aparelho pareado
-     * (conta técnica {@code idoso-<id>@<domínio>} com a role {@code idoso}).
+     * Acesso do dia a dia ao idoso: além de quem {@link #exigirVinculo} aceita, o próprio idoso, usando o token do
+     * aparelho pareado (conta técnica {@code idoso-<id>@<domínio>} com a role {@code idoso}; o {@code sub} desse
+     * token não identifica o idoso, quem o identifica é a conta técnica). Serve às leituras e ao que o aparelho faz
+     * em nome do idoso (disparar SOS, enviar telemetria, confirmar ingestão); a gestão da rede e do cadastro usa
+     * {@link #exigirVinculo} ou {@link #exigirAdministrador}.
      */
     @Transactional(readOnly = true)
     public Idoso exigirLeitura(UsuarioAutenticado usuario, UUID idosoId) {
