@@ -299,4 +299,20 @@ class AlarmeEmergenciaServiceTest {
 
         verify(alarmeEmergenciaRepository, never()).findByIdosoIdOrderByCriadoEmDesc(any());
     }
+
+    @Test
+    @DisplayName("Sem vínculo, o alarme de outro idoso responde o mesmo 404 de alarme inexistente, sem citar o idoso")
+    void alarmeDeOutroIdosoViraAlarmeNaoEncontrado() {
+        when(alarmeEmergenciaRepository.findById(alarmeId)).thenReturn(Optional.of(mockAlarme));
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+
+        assertThatThrownBy(() -> alarmeEmergenciaService.buscarPorId(alarmeId, mockUsuario))
+                .isInstanceOf(AlarmeNaoEncontradoException.class)
+                .hasMessageContaining(alarmeId.toString())
+                .hasMessageNotContaining(idosoId.toString());
+        assertThatThrownBy(() -> alarmeEmergenciaService.atualizarStatus(alarmeId,
+                new AtualizarStatusAlarmeRequestDTO(StatusAlarme.RESOLVIDO, "x"), mockUsuario))
+                .isInstanceOf(AlarmeNaoEncontradoException.class);
+        verify(alarmeEmergenciaRepository, never()).save(any());
+    }
 }

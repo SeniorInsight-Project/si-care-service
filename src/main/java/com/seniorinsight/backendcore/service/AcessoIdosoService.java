@@ -17,7 +17,9 @@ import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 /**
  * Autorização por idoso (RF-007): o usuário só acessa um idoso se estiver na rede dele (familiar com vínculo) ou se
- * for médico que o acompanha. Idoso inexistente responde 404; sem vínculo, 403.
+ * for médico que o acompanha. Idoso inexistente e idoso sem vínculo com o usuário respondem o mesmo 404, para não
+ * revelar a quem está fora da rede quais idosos existem. O 403 fica para quem já está na rede mas não tem o papel
+ * exigido (ex.: não é o Administrador).
  */
 @Service
 public class AcessoIdosoService {
@@ -45,7 +47,7 @@ public class AcessoIdosoService {
         Idoso idoso = carregar(idosoId);
         if (!idosoPareado(usuario, idosoId) && vinculoDe(usuario, idosoId) == null
                 && !medicoAcompanha(usuario, idosoId)) {
-            throw new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+            throw new IdosoNaoEncontradoException(idosoId);
         }
         return idoso;
     }
@@ -65,7 +67,7 @@ public class AcessoIdosoService {
     public Idoso exigirVinculo(UsuarioAutenticado usuario, UUID idosoId) {
         Idoso idoso = carregar(idosoId);
         if (vinculoDe(usuario, idosoId) == null && !medicoAcompanha(usuario, idosoId)) {
-            throw new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+            throw new IdosoNaoEncontradoException(idosoId);
         }
         return idoso;
     }
@@ -75,6 +77,9 @@ public class AcessoIdosoService {
     public Idoso exigirAdministrador(UsuarioAutenticado usuario, UUID idosoId) {
         Idoso idoso = carregar(idosoId);
         VinculoRede vinculo = vinculoDe(usuario, idosoId);
+        if (vinculo == null && !medicoAcompanha(usuario, idosoId)) {
+            throw new IdosoNaoEncontradoException(idosoId);
+        }
         if (vinculo == null || !PapelAcesso.ADMINISTRADOR.equals(vinculo.getPapelAcesso())) {
             throw new PerfilNaoAutorizadoException("Apenas o Familiar Administrador pode realizar esta operação.");
         }

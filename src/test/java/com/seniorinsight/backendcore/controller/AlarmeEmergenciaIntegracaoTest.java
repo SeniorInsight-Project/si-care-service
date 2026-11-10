@@ -64,7 +64,7 @@ class AlarmeEmergenciaIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
     }
 
     @Test
-    @DisplayName("Sem vínculo, as quatro rotas respondem 403 com o Erro do contrato e nada é gravado ou alterado")
+    @DisplayName("Sem vínculo (404, igual a inexistente), as quatro rotas respondem 404 com o Erro do contrato e nada é gravado ou alterado")
     void semVinculo() throws Exception {
         Idoso idoso = idosoComRede();
         AlarmeEmergencia alarme = alarme(idoso);
@@ -73,17 +73,17 @@ class AlarmeEmergenciaIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         for (JwtRequestPostProcessor quem : List.of(token(ESTRANHO), tokenDoIdoso(UUID.randomUUID()))) {
             mockMvc.perform(post(SOS_DO_IDOSO, idoso.getId()).with(quem)
                             .contentType(MediaType.APPLICATION_JSON).content(CORPO_DISPARO))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
                     .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idoso.getId() + "/sos"));
             mockMvc.perform(get(SOS_DO_IDOSO, idoso.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
             mockMvc.perform(get(SOS, alarme.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Alarme Não Encontrado"));
             mockMvc.perform(put(STATUS, alarme.getId()).with(quem)
                             .contentType(MediaType.APPLICATION_JSON).content(CORPO_STATUS))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Alarme Não Encontrado"));
         }
 
         assertThat(alarmeRepository.count()).isEqualTo(antes);

@@ -38,6 +38,7 @@ import com.seniorinsight.backendcore.dto.StepsDataDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
+import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
 
@@ -341,9 +342,9 @@ class TelemetriaWearableControllerTest {
     }
 
     @Test
-    @DisplayName("Sem vínculo com o idoso, todas as rotas de telemetria respondem 403 com o Erro do contrato")
+    @DisplayName("Sem vínculo com o idoso, todas as rotas de telemetria respondem 404 com o Erro do contrato")
     void todasAsRotasRetornam403SemVinculo() throws Exception {
-        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
         when(wearableIntegrationService.processarTelemetria(any(), any(), any())).thenThrow(foraDaRede);
         when(wearableIntegrationService.processarTelemetriaLote(any(), any(), any())).thenThrow(foraDaRede);
         when(wearableIntegrationService.processarFrequenciaCardiaca(any(), any(), any())).thenThrow(foraDaRede);
@@ -354,10 +355,10 @@ class TelemetriaWearableControllerTest {
 
         for (String[] r : ROTAS) {
             mockMvc.perform(rota(r, idosoId, corpoDaRota(r[1])).with(tokenFamiliar()))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"))
-                    .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."));
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                    .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId));
         }
     }
 

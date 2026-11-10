@@ -50,33 +50,33 @@ class ComorbidadeIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
     }
 
     @Test
-    @DisplayName("O aparelho pareado lê as comorbidades, mas não as altera")
+    @DisplayName("O aparelho pareado lê as comorbidades, mas não as altera (404)")
     void aparelhoPareadoNaoEscreve() throws Exception {
         Idoso idoso = idosoComRede();
 
         mockMvc.perform(post(BASE, idoso.getId()).with(tokenDoIdoso(idoso.getId()))
                         .contentType(MediaType.APPLICATION_JSON).content(CORPO))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         mockMvc.perform(delete(BASE + "/{n}", idoso.getId(), "Diabetes").with(tokenDoIdoso(idoso.getId())))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("Sem vínculo, as três rotas respondem 403 com o Erro do contrato e nada é gravado")
+    @DisplayName("Sem vínculo (404, igual a inexistente), as três rotas respondem 404 com o Erro do contrato e nada é gravado")
     void semVinculo() throws Exception {
         Idoso idoso = idosoComRede();
 
         for (JwtRequestPostProcessor quem : List.of(token(ESTRANHO), tokenDoIdoso(UUID.randomUUID()))) {
             mockMvc.perform(post(BASE, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content(CORPO))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
                     .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idoso.getId() + "/comorbidades"));
             mockMvc.perform(get(BASE, idoso.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
             mockMvc.perform(delete(BASE + "/{n}", idoso.getId(), "Diabetes").with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         }
 
         assertThat(idosoRepository.findById(idoso.getId()).orElseThrow().getComorbidades()).isNullOrEmpty();

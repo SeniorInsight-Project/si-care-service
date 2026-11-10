@@ -54,11 +54,11 @@ class RedeProtecaoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
 
         mockMvc.perform(post(CONVITES, idoso.getId()).with(tokenDoIdoso(idoso.getId()))
                         .contentType(MediaType.APPLICATION_JSON).content(CONVITE))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("Sem vínculo, gerar convite e listar a rede respondem 403 com o Erro do contrato e nenhum convite é gravado")
+    @DisplayName("Sem vínculo (404), gerar convite e listar a rede respondem 404 com o Erro do contrato e nenhum convite é gravado")
     void semVinculo() throws Exception {
         Idoso idoso = idosoComRede();
         long convites = conviteRepository.count();
@@ -66,12 +66,12 @@ class RedeProtecaoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         for (JwtRequestPostProcessor quem : List.of(token(ESTRANHO), tokenDoIdoso(UUID.randomUUID()))) {
             mockMvc.perform(post(CONVITES, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content(CONVITE))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
                     .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idoso.getId() + "/convites"));
             mockMvc.perform(get(REDE, idoso.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         }
 
         assertThat(conviteRepository.count()).isEqualTo(convites);
@@ -98,5 +98,18 @@ class RedeProtecaoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         mockMvc.perform(post(CONVITES, inexistente).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
                 .content(CONVITE)).andExpect(status().isNotFound());
         mockMvc.perform(get(REDE, inexistente).with(token(ADMIN))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Convite com papel Administrador responde 400 e nenhum convite é gravado (RN-012)")
+    void conviteNaoConcedeAdministrador() throws Exception {
+        Idoso idoso = idosoComRede();
+        long convites = conviteRepository.count();
+
+        mockMvc.perform(post(CONVITES, idoso.getId()).with(token(ADMIN)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"neta@seniorinsight.com\",\"papelAcesso\":\"ADMINISTRADOR\"}"))
+                .andExpect(status().isBadRequest());
+
+        assertThat(conviteRepository.count()).isEqualTo(convites);
     }
 }

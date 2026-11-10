@@ -47,31 +47,31 @@ class AcessoIdosoServiceTest {
     }
 
     @Test
-    @DisplayName("Quem é da plataforma mas não da rede recebe 403 (PerfilNaoAutorizadoException)")
+    @DisplayName("Quem é da plataforma mas não da rede recebe o mesmo 404 de idoso inexistente")
     void semVinculoEhNegado() {
         existeIdoso();
         when(vinculoRepository.findByFamiliar_KeycloakSubAndIdoso_Id("sub-estranho", idosoId))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.exigirVinculo(usuario("sub-estranho"), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
         assertThatThrownBy(() -> service.exigirLeitura(usuario("sub-estranho"), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
     }
 
     @Test
-    @DisplayName("Sem usuário ou sem sub, nega")
+    @DisplayName("Sem usuário ou sem sub, nega com o mesmo 404")
     void semUsuarioEhNegado() {
         existeIdoso();
 
-        assertThatThrownBy(() -> service.exigirVinculo(null, idosoId)).isInstanceOf(PerfilNaoAutorizadoException.class);
-        assertThatThrownBy(() -> service.exigirLeitura(null, idosoId)).isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> service.exigirVinculo(null, idosoId)).isInstanceOf(IdosoNaoEncontradoException.class);
+        assertThatThrownBy(() -> service.exigirLeitura(null, idosoId)).isInstanceOf(IdosoNaoEncontradoException.class);
         assertThatThrownBy(() -> service.exigirLeitura(usuario(null), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
     }
 
     @Test
-    @DisplayName("Idoso inexistente responde 404 (IdosoNaoEncontradoException) antes de checar o vínculo")
+    @DisplayName("Idoso inexistente responde 404 (IdosoNaoEncontradoException)")
     void idosoInexistente() {
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
 
@@ -89,9 +89,9 @@ class AcessoIdosoServiceTest {
 
         assertThat(service.exigirLeitura(aparelho, idosoId)).isSameAs(idoso);
         assertThatThrownBy(() -> service.exigirVinculo(aparelho, idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
         assertThatThrownBy(() -> service.exigirLeitura(aparelho(UUID.randomUUID(), true, "idoso"), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
     }
 
     @Test
@@ -100,9 +100,9 @@ class AcessoIdosoServiceTest {
         existeIdoso();
 
         assertThatThrownBy(() -> service.exigirLeitura(aparelho(idosoId, false, "idoso"), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
         assertThatThrownBy(() -> service.exigirLeitura(aparelho(idosoId, true, "familiar"), idosoId))
-                .isInstanceOf(PerfilNaoAutorizadoException.class);
+                .isInstanceOf(IdosoNaoEncontradoException.class);
     }
 
     @Test
@@ -117,6 +117,18 @@ class AcessoIdosoServiceTest {
         assertThat(service.exigirAdministrador(usuario("sub-admin"), idosoId)).isSameAs(idoso);
         assertThatThrownBy(() -> service.exigirAdministrador(usuario("sub-apoio"), idosoId))
                 .isInstanceOf(PerfilNaoAutorizadoException.class);
+    }
+
+    @Test
+    @DisplayName("exigirAdministrador: médico do idoso recebe 403; quem não tem vínculo recebe o 404 de idoso inexistente")
+    void administradorMedicoEEstranho() {
+        existeIdoso();
+        when(idosoRepository.medicoAcompanha(idosoId, "sub-medico")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.exigirAdministrador(usuario("sub-medico"), idosoId))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> service.exigirAdministrador(usuario("sub-estranho"), idosoId))
+                .isInstanceOf(IdosoNaoEncontradoException.class);
     }
 
     private void existeIdoso() {

@@ -79,14 +79,14 @@ class SecurityConfigTest {
     }
 
     @Test
-    @DisplayName("Token válido sem vínculo com o idoso responde 403")
-    void tokenValidoSemVinculoResponde403() throws Exception {
+    @DisplayName("Token válido sem vínculo com o idoso responde 404, como idoso inexistente")
+    void tokenValidoSemVinculoResponde404() throws Exception {
         UUID idosoId = UUID.randomUUID();
         when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(Idoso.builder().id(idosoId).build()));
 
         mockMvc.perform(get(URL, idosoId).with(tokenFamiliar()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
     }
 
     @Test

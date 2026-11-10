@@ -493,4 +493,20 @@ class RotinaMedicamentoServiceTest {
         verify(acessoIdosoService, times(2)).exigirVinculo(usuarioFamiliar, idosoId);
         verify(acessoIdosoService, times(3)).exigirLeitura(any(), any());
     }
+
+    @Test
+    @DisplayName("Sem vínculo, a rotina de outro idoso responde o mesmo 404 de rotina inexistente, sem citar o idoso")
+    void rotinaDeOutroIdosoViraRotinaNaoEncontrada() {
+        when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
+        when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
+        when(acessoIdosoService.exigirLeitura(usuarioSemPerfil, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+        when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+
+        assertThatThrownBy(() -> rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(RotinaMedicamentoNaoEncontradaException.class)
+                .hasMessageNotContaining(idosoId.toString());
+        assertThatThrownBy(() -> rotinaMedicamentoService.removerRotina(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(RotinaMedicamentoNaoEncontradaException.class);
+        verify(rotinaMedicamentoRepository, never()).delete(any());
+    }
 }

@@ -264,22 +264,22 @@ class RedeProtecaoControllerTest {
     }
 
     @Test
-    @DisplayName("Sem vínculo com o idoso, gerar convite e listar a rede respondem 403 com o Erro do contrato")
+    @DisplayName("Sem vínculo com o idoso, gerar convite e listar a rede respondem 404 com o Erro do contrato")
     void rotasPorIdosoRetornam403SemVinculo() throws Exception {
-        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
         when(redeProtecaoService.gerarConvite(eq(idosoId), any(), any())).thenThrow(foraDaRede);
         when(redeProtecaoService.listarMembrosRede(eq(idosoId), any())).thenThrow(foraDaRede);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/convites", idosoId).with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON).content(CONVITE))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
-                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId))
                 .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/convites"));
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/rede", idosoId).with(tokenFamiliar()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

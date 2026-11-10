@@ -233,21 +233,21 @@ class ComorbidadeControllerTest {
     }
 
     @Test
-    @DisplayName("Sem vínculo com o idoso, GET e DELETE respondem 403 com o Erro do contrato")
+    @DisplayName("Sem vínculo com o idoso, GET e DELETE respondem 404 com o Erro do contrato")
     void getEDeleteRetornam403SemVinculo() throws Exception {
-        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
         when(comorbidadeService.listarComorbidades(eq(idosoId), any())).thenThrow(foraDaRede);
         doThrow(foraDaRede).when(comorbidadeService).removerComorbidade(eq(idosoId), eq("Asma"), any());
 
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/comorbidades", idosoId).with(tokenFamiliar()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
-                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId))
                 .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/comorbidades"));
         mockMvc.perform(delete("/api/v1/idosos/{idosoId}/comorbidades/{n}", idosoId, "Asma").with(tokenFamiliar()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

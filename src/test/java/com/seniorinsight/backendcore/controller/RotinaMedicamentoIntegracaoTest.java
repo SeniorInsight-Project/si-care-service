@@ -89,7 +89,7 @@ class RotinaMedicamentoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
     }
 
     @Test
-    @DisplayName("O aparelho pareado lê as rotinas e confirma a ingestão, mas não cria, edita nem remove")
+    @DisplayName("O aparelho pareado lê as rotinas e confirma a ingestão, mas não cria, edita nem remove (404)")
     void aparelhoPareado() throws Exception {
         Idoso idoso = idosoComRede();
         RotinaMedicamento rotina = rotina(idoso);
@@ -103,15 +103,15 @@ class RotinaMedicamentoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
                 .andExpect(status().isCreated());
 
         mockMvc.perform(post(DO_IDOSO, idoso.getId()).with(aparelho).contentType(MediaType.APPLICATION_JSON)
-                .content(CRIAR)).andExpect(status().isForbidden());
+                .content(CRIAR)).andExpect(status().isNotFound());
         mockMvc.perform(put(ROTINA, rotina.getId()).with(aparelho).contentType(MediaType.APPLICATION_JSON)
-                .content("{}")).andExpect(status().isForbidden());
-        mockMvc.perform(delete(ROTINA, rotina.getId()).with(aparelho)).andExpect(status().isForbidden());
+                .content("{}")).andExpect(status().isNotFound());
+        mockMvc.perform(delete(ROTINA, rotina.getId()).with(aparelho)).andExpect(status().isNotFound());
         assertThat(rotinaRepository.findById(rotina.getId())).isPresent();
     }
 
     @Test
-    @DisplayName("Sem vínculo, as sete rotas respondem 403 com o Erro do contrato e nada é gravado, alterado ou removido")
+    @DisplayName("Sem vínculo (404, igual a inexistente), as sete rotas respondem 404 com o Erro do contrato e nada é gravado, alterado ou removido")
     void semVinculo() throws Exception {
         Idoso idoso = idosoComRede();
         RotinaMedicamento rotina = rotina(idoso);
@@ -121,24 +121,24 @@ class RotinaMedicamentoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         for (JwtRequestPostProcessor quem : List.of(token(ESTRANHO), tokenDoIdoso(UUID.randomUUID()))) {
             mockMvc.perform(post(DO_IDOSO, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content(CRIAR))
-                    .andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.status").value(403))
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
                     .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idoso.getId() + "/rotinas-medicamentos"));
-            mockMvc.perform(get(DO_IDOSO, idoso.getId()).with(quem)).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"));
-            mockMvc.perform(get(ROTINA, rotina.getId()).with(quem)).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"));
-            mockMvc.perform(get(ROTINA + "/historico", rotina.getId()).with(quem)).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"));
+            mockMvc.perform(get(DO_IDOSO, idoso.getId()).with(quem)).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+            mockMvc.perform(get(ROTINA, rotina.getId()).with(quem)).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
+            mockMvc.perform(get(ROTINA + "/historico", rotina.getId()).with(quem)).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
             mockMvc.perform(post(ROTINA + "/confirmar-ingestao", rotina.getId()).with(quem)
                             .contentType(MediaType.APPLICATION_JSON).content("{}"))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
             mockMvc.perform(put(ROTINA, rotina.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content("{\"observacoes\":\"invadida\"}"))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
-            mockMvc.perform(delete(ROTINA, rotina.getId()).with(quem)).andExpect(status().isForbidden())
-                    .andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
+            mockMvc.perform(delete(ROTINA, rotina.getId()).with(quem)).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.error").value("Rotina de Medicamento Não Encontrada"));
         }
 
         assertThat(rotinaRepository.count()).isEqualTo(rotinas);
@@ -153,9 +153,9 @@ class RotinaMedicamentoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         Idoso outro = novoIdoso("Outro Idoso", "222.222.222-22");
         RotinaMedicamento rotinaDoOutro = rotina(outro);
 
-        mockMvc.perform(get(ROTINA, rotinaDoOutro.getId()).with(token(ADMIN))).andExpect(status().isForbidden());
-        mockMvc.perform(delete(ROTINA, rotinaDoOutro.getId()).with(token(ADMIN))).andExpect(status().isForbidden());
-        mockMvc.perform(get(DO_IDOSO, outro.getId()).with(token(ADMIN))).andExpect(status().isForbidden());
+        mockMvc.perform(get(ROTINA, rotinaDoOutro.getId()).with(token(ADMIN))).andExpect(status().isNotFound());
+        mockMvc.perform(delete(ROTINA, rotinaDoOutro.getId()).with(token(ADMIN))).andExpect(status().isNotFound());
+        mockMvc.perform(get(DO_IDOSO, outro.getId()).with(token(ADMIN))).andExpect(status().isNotFound());
         assertThat(rotinaRepository.findById(rotinaDoOutro.getId())).isPresent();
         assertThat(idoso.getId()).isNotEqualTo(outro.getId());
     }

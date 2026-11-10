@@ -26,6 +26,7 @@ import com.seniorinsight.backendcore.dto.ConfirmarIngestaoRequestDTO;
 import com.seniorinsight.backendcore.dto.HistoricoMedicacaoResponseDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoRequestDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
+import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.MedicamentoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
@@ -192,7 +193,7 @@ public class RotinaMedicamentoService {
                     return new RotinaMedicamentoNaoEncontradaException(rotinaId);
                 });
         // O aparelho do idoso confirma a própria medicação; a rede e o médico também podem registrar
-        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
+        exigirLeituraDaRotina(usuario, rotina);
 
         Instant dataHoraIngestao = (request != null && request.dataHoraIngestao() != null)
                 ? request.dataHoraIngestao()
@@ -275,7 +276,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
-        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
+        exigirLeituraDaRotina(usuario, rotina);
 
         return mapearParaResponseDTO(rotina, LocalDate.now(FUSO_HORARIO_PADRAO));
     }
@@ -297,7 +298,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
-        acessoIdosoService.exigirVinculo(usuario, rotina.getIdoso().getId());
+        exigirVinculoDaRotina(usuario, rotina);
 
         if (request.horario() != null) {
             rotina.setHorario(request.horario());
@@ -344,7 +345,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findById(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
-        acessoIdosoService.exigirVinculo(usuario, rotina.getIdoso().getId());
+        exigirVinculoDaRotina(usuario, rotina);
 
         rotinaMedicamentoRepository.delete(rotina);
         log.info("Rotina {} removida com sucesso pelo usuário {}", rotinaId, usuario.keycloakSub());
@@ -359,7 +360,7 @@ public class RotinaMedicamentoService {
 
         RotinaMedicamento rotina = rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)
                 .orElseThrow(() -> new RotinaMedicamentoNaoEncontradaException(rotinaId));
-        acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
+        exigirLeituraDaRotina(usuario, rotina);
 
         List<HistoricoMedicacao> historicos = historicoMedicacaoRepository.findByRotinaIdOrderByDataHoraIngestaoDesc(rotinaId);
 
@@ -460,6 +461,23 @@ public class RotinaMedicamentoService {
                 rotina.getCriadoEm(),
                 rotina.getAtualizadoEm()
         );
+    }
+
+    /** Sem vínculo com o idoso dono da rotina, a rotina "não existe": mesmo 404 de um id inexistente. */
+    private void exigirLeituraDaRotina(UsuarioAutenticado usuario, RotinaMedicamento rotina) {
+        try {
+            acessoIdosoService.exigirLeitura(usuario, rotina.getIdoso().getId());
+        } catch (IdosoNaoEncontradoException ex) {
+            throw new RotinaMedicamentoNaoEncontradaException(rotina.getId());
+        }
+    }
+
+    private void exigirVinculoDaRotina(UsuarioAutenticado usuario, RotinaMedicamento rotina) {
+        try {
+            acessoIdosoService.exigirVinculo(usuario, rotina.getIdoso().getId());
+        } catch (IdosoNaoEncontradoException ex) {
+            throw new RotinaMedicamentoNaoEncontradaException(rotina.getId());
+        }
     }
 
     private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {

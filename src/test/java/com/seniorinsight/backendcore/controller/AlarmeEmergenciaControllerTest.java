@@ -225,9 +225,9 @@ class AlarmeEmergenciaControllerTest {
     }
 
     @Test
-    @DisplayName("Sem vínculo com o idoso, todas as rotas de SOS respondem 403 com o Erro do contrato")
+    @DisplayName("Sem vínculo com o idoso, todas as rotas de SOS respondem 404 com o Erro do contrato")
     void todasAsRotasRetornam403SemVinculo() throws Exception {
-        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
         when(alarmeEmergenciaService.dispararAlarme(eq(idosoId), any(), any())).thenThrow(foraDaRede);
         when(alarmeEmergenciaService.listarPorIdoso(eq(idosoId), any())).thenThrow(foraDaRede);
         when(alarmeEmergenciaService.buscarPorId(eq(alarmeId), any())).thenThrow(foraDaRede);
@@ -237,18 +237,18 @@ class AlarmeEmergenciaControllerTest {
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId).with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON).content(disparo))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.status").value(403))
-                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
-                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId))
                 .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/sos"));
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/sos", idosoId).with(tokenFamiliar()))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         mockMvc.perform(get("/api/v1/sos/{alarmeId}", alarmeId).with(tokenFamiliar()))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         mockMvc.perform(put("/api/v1/sos/{alarmeId}/status", alarmeId).with(tokenFamiliar())
                         .contentType(MediaType.APPLICATION_JSON).content(status))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
     }
 
     @Test

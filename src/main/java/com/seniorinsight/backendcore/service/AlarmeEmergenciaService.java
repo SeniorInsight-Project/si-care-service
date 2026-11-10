@@ -17,6 +17,7 @@ import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
 
@@ -120,7 +121,7 @@ public class AlarmeEmergenciaService {
                     return new AlarmeNaoEncontradoException(alarmeId);
                 });
 
-        acessoIdosoService.exigirLeitura(usuarioAutenticado, alarme.getIdoso().getId());
+        exigirAcessoAoAlarme(usuarioAutenticado, alarme);
 
         alarme.atualizarStatus(request.status(), request.observacao());
         AlarmeEmergencia atualizado = alarmeEmergenciaRepository.save(alarme);
@@ -150,7 +151,7 @@ public class AlarmeEmergenciaService {
         AlarmeEmergencia alarme = alarmeEmergenciaRepository.findById(alarmeId)
                 .orElseThrow(() -> new AlarmeNaoEncontradoException(alarmeId));
 
-        acessoIdosoService.exigirLeitura(usuarioAutenticado, alarme.getIdoso().getId());
+        exigirAcessoAoAlarme(usuarioAutenticado, alarme);
 
         return AlarmeEmergenciaResponseDTO.fromEntity(alarme, "Alarme localizado com sucesso.");
     }
@@ -174,5 +175,14 @@ public class AlarmeEmergenciaService {
                 .stream()
                 .map(alarme -> AlarmeEmergenciaResponseDTO.fromEntity(alarme, null))
                 .toList();
+    }
+
+    /** Sem vínculo com o idoso dono do alarme, o alarme "não existe": mesmo 404 de um id inexistente. */
+    private void exigirAcessoAoAlarme(UsuarioAutenticado usuario, AlarmeEmergencia alarme) {
+        try {
+            acessoIdosoService.exigirLeitura(usuario, alarme.getIdoso().getId());
+        } catch (IdosoNaoEncontradoException ex) {
+            throw new AlarmeNaoEncontradoException(alarme.getId());
+        }
     }
 }

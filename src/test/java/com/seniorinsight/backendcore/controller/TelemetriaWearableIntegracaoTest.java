@@ -69,10 +69,10 @@ class TelemetriaWearableIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
                 .andExpect(status().isCreated());
         mockMvc.perform(post("/api/v1/telemetria-wearable/ingestao").with(token(ESTRANHO))
                         .contentType(MediaType.APPLICATION_JSON).content(corpo))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         mockMvc.perform(post("/api/v1/telemetria-wearable/ingestao").with(tokenDoIdoso(UUID.randomUUID()))
                         .contentType(MediaType.APPLICATION_JSON).content(corpo))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
 
         assertThat(telemetriaRepository.count()).isEqualTo(antes + 1);
     }
@@ -88,13 +88,13 @@ class TelemetriaWearableIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
 
         mockMvc.perform(post("/api/v1/telemetria-wearable/lote").with(tokenDoIdoso(idoso.getId()))
                         .contentType(MediaType.APPLICATION_JSON).content(lote))
-                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
 
         assertThat(telemetriaRepository.count()).isEqualTo(antes);
     }
 
     @Test
-    @DisplayName("Sem vínculo, todas as rotas respondem 403 com o Erro do contrato; nada é gravado e nenhuma queda vira SOS")
+    @DisplayName("Sem vínculo, todas as rotas respondem 404 com o Erro do contrato; nada é gravado e nenhuma queda vira SOS")
     void semVinculo() throws Exception {
         Idoso idoso = idosoComRede();
         long leituras = telemetriaRepository.count();
@@ -108,16 +108,16 @@ class TelemetriaWearableIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
                     {"/passos", "{\"count\":100}"},
                     {"/deteccao-queda", "{\"fall_detected\":true}"}}) {
                 mockMvc.perform(envio(rota[0], rota[1], idoso.getId(), quem))
-                        .andExpect(status().isForbidden())
-                        .andExpect(jsonPath("$.status").value(403))
-                        .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                        .andExpect(status().isNotFound())
+                        .andExpect(jsonPath("$.status").value(404))
+                        .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
                         .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idoso.getId()
                                 + "/telemetria-wearable" + rota[0]));
             }
             mockMvc.perform(get(BASE + "/ultimas", idoso.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
             mockMvc.perform(get(BASE + "/recente", idoso.getId()).with(quem))
-                    .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
         }
 
         assertThat(telemetriaRepository.count()).isEqualTo(leituras);
