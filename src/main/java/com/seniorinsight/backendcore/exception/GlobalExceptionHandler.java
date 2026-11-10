@@ -41,6 +41,16 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, "CPF Já Cadastrado", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(LimiteContatosEmergenciaException.class)
+    public ResponseEntity<Map<String, Object>> handleLimiteContatos(LimiteContatosEmergenciaException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Limite de Contatos Atingido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ContatoEmergenciaNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleContatoNaoEncontrado(ContatoEmergenciaNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Contato de Emergência Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleCorpoIlegivel(HttpMessageNotReadableException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Requisição Inválida",

@@ -5,11 +5,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.seniorinsight.backendcore.domain.Idoso;
+
+import jakarta.persistence.LockModeType;
 
 @Repository
 public interface IdosoRepository extends JpaRepository<Idoso, UUID> {
@@ -19,6 +22,11 @@ public interface IdosoRepository extends JpaRepository<Idoso, UUID> {
     boolean existsByCpf(String cpf);
 
     boolean existsByCpfAndIdNot(String cpf, UUID id);
+
+    /** Trava a linha do idoso até o fim da transação, para serializar escritas que dependem de uma contagem. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT i.id FROM Idoso i WHERE i.id = :id")
+    Optional<UUID> travarParaEscrita(@Param("id") UUID id);
 
     /** Idosos em que o familiar tem vínculo na rede. */
     @Query("SELECT v.idoso FROM VinculoRede v WHERE v.familiar.keycloakSub = :sub")
