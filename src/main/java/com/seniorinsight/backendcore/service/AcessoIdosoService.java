@@ -17,7 +17,9 @@ import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 /**
  * Autorização por idoso (RF-007): o usuário só acessa um idoso se estiver na rede dele (familiar com vínculo) ou se
- * for médico que o acompanha. Idoso inexistente responde 404; sem vínculo, 403.
+ * for médico que o acompanha. Idoso inexistente e idoso sem vínculo com o usuário respondem o mesmo 404, para não
+ * revelar a quem está fora da rede quais idosos existem. O 403 fica para quem já está na rede mas não tem o papel
+ * exigido (ex.: não é o Administrador).
  */
 @Service
 public class AcessoIdosoService {
@@ -34,15 +36,18 @@ public class AcessoIdosoService {
     }
 
     /**
-     * Leitura: além de quem {@link #exigirVinculo} aceita, o próprio idoso, usando o token do aparelho pareado
-     * (conta técnica {@code idoso-<id>@<domínio>} com a role {@code idoso}).
+     * Acesso do dia a dia ao idoso: além de quem {@link #exigirVinculo} aceita, o próprio idoso, usando o token do
+     * aparelho pareado (conta técnica {@code idoso-<id>@<domínio>} com a role {@code idoso}; o {@code sub} desse
+     * token não identifica o idoso, quem o identifica é a conta técnica). Serve às leituras e ao que o aparelho faz
+     * em nome do idoso (disparar SOS, enviar telemetria, confirmar ingestão); a gestão da rede e do cadastro usa
+     * {@link #exigirVinculo} ou {@link #exigirAdministrador}.
      */
     @Transactional(readOnly = true)
     public Idoso exigirLeitura(UsuarioAutenticado usuario, UUID idosoId) {
         Idoso idoso = carregar(idosoId);
         if (!idosoPareado(usuario, idosoId) && vinculoDe(usuario, idosoId) == null
                 && !medicoAcompanha(usuario, idosoId)) {
-            throw new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+            throw new IdosoNaoEncontradoException(idosoId);
         }
         return idoso;
     }
@@ -62,7 +67,7 @@ public class AcessoIdosoService {
     public Idoso exigirVinculo(UsuarioAutenticado usuario, UUID idosoId) {
         Idoso idoso = carregar(idosoId);
         if (vinculoDe(usuario, idosoId) == null && !medicoAcompanha(usuario, idosoId)) {
-            throw new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+            throw new IdosoNaoEncontradoException(idosoId);
         }
         return idoso;
     }
@@ -72,6 +77,9 @@ public class AcessoIdosoService {
     public Idoso exigirAdministrador(UsuarioAutenticado usuario, UUID idosoId) {
         Idoso idoso = carregar(idosoId);
         VinculoRede vinculo = vinculoDe(usuario, idosoId);
+        if (vinculo == null && !medicoAcompanha(usuario, idosoId)) {
+            throw new IdosoNaoEncontradoException(idosoId);
+        }
         if (vinculo == null || !PapelAcesso.ADMINISTRADOR.equals(vinculo.getPapelAcesso())) {
             throw new PerfilNaoAutorizadoException("Apenas o Familiar Administrador pode realizar esta operação.");
         }

@@ -13,6 +13,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -39,6 +41,7 @@ import com.seniorinsight.backendcore.dto.HistoricoMedicacaoResponseDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoRequestDTO;
 import com.seniorinsight.backendcore.dto.RotinaMedicamentoResponseDTO;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
 import com.seniorinsight.backendcore.service.RotinaMedicamentoService;
 
@@ -327,6 +330,66 @@ class RotinaMedicamentoControllerTest {
         mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{rotinaId}", rotinaId)
                         .with(tokenFamiliar()))
                 .andExpect(status().isNoContent());
+    }
+
+    // =========================================================================
+    // Autorização por idoso: sem token (401) e sem vínculo (403) em todas as rotas
+    // =========================================================================
+
+    private static final String CRIAR = "{\"nomeMedicamento\":\"Aspirina\",\"dosagem\":\"100mg\",\"horario\":\"08:00\",\"frequencia\":\"1x ao dia\"}";
+
+    @Test
+    @DisplayName("As sete rotas de rotinas respondem 401 sem token e não chegam ao serviço")
+    void todasAsRotasRetornam401SemToken() throws Exception {
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId)
+                .contentType(MediaType.APPLICATION_JSON).content(CRIAR)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/v1/rotinas-medicamentos/{id}/confirmar-ingestao", rotinaId)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{id}", rotinaId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/rotinas-medicamentos/{id}", rotinaId)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{id}", rotinaId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{id}/historico", rotinaId))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(rotinaMedicamentoService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, as sete rotas de rotinas respondem 404 com o Erro do contrato")
+    void todasAsRotasRetornam403SemVinculo() throws Exception {
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
+        when(rotinaMedicamentoService.criarRotina(eq(idosoId), any(), any())).thenThrow(foraDaRede);
+        when(rotinaMedicamentoService.listarRotinasDiarias(eq(idosoId), any(), any(), any())).thenThrow(foraDaRede);
+        when(rotinaMedicamentoService.confirmarIngestao(eq(rotinaId), any(), any())).thenThrow(foraDaRede);
+        when(rotinaMedicamentoService.obterRotinaPorId(eq(rotinaId), any())).thenThrow(foraDaRede);
+        when(rotinaMedicamentoService.atualizarRotina(eq(rotinaId), any(), any())).thenThrow(foraDaRede);
+        doThrow(foraDaRede).when(rotinaMedicamentoService).removerRotina(eq(rotinaId), any());
+        when(rotinaMedicamentoService.listarHistoricoRotina(eq(rotinaId), any())).thenThrow(foraDaRede);
+
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content(CRIAR))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId))
+                .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/rotinas-medicamentos"));
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/rotinas-medicamentos", idosoId).with(tokenFamiliar()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+        mockMvc.perform(post("/api/v1/rotinas-medicamentos/{id}/confirmar-ingestao", rotinaId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{id}", rotinaId).with(tokenFamiliar()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+        mockMvc.perform(put("/api/v1/rotinas-medicamentos/{id}", rotinaId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+        mockMvc.perform(delete("/api/v1/rotinas-medicamentos/{id}", rotinaId).with(tokenFamiliar()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
+        mockMvc.perform(get("/api/v1/rotinas-medicamentos/{id}/historico", rotinaId).with(tokenFamiliar()))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.error").value("Idoso Não Encontrado"));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

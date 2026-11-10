@@ -19,7 +19,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -39,11 +42,8 @@ import com.seniorinsight.backendcore.exception.MedicamentoNaoEncontradoException
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.RotinaMedicamentoNaoEncontradaException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
-import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.HistoricoMedicacaoRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicamentoRepository;
-import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.RotinaMedicamentoRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,13 +61,7 @@ class RotinaMedicamentoServiceTest {
     private HistoricoMedicacaoRepository historicoMedicacaoRepository;
 
     @Mock
-    private IdosoRepository idosoRepository;
-
-    @Mock
-    private FamiliarRepository familiarRepository;
-
-    @Mock
-    private MedicoRepository medicoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @InjectMocks
     private RotinaMedicamentoService rotinaMedicamentoService;
@@ -124,8 +118,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve criar rotina cadastrando novo medicamento com sucesso")
     void deveCriarRotinaComNovoMedicamentoComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(medicamentoRepository.findByNomeIgnoreCaseAndDosagemIgnoreCase("Losartana Potássica", "50mg"))
                 .thenReturn(Optional.empty());
         when(medicamentoRepository.save(any(Medicamento.class))).thenReturn(medicamento);
@@ -162,8 +155,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve criar rotina reutilizando medicamento existente por ID")
     void deveCriarRotinaComMedicamentoExistentePorIdComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(medicamentoRepository.findById(medicamentoId)).thenReturn(Optional.of(medicamento));
         when(rotinaMedicamentoRepository.save(any(RotinaMedicamento.class))).thenAnswer(i -> {
             RotinaMedicamento r = i.getArgument(0);
@@ -194,8 +186,7 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve lançar IdosoNaoEncontradoException ao criar rotina para idoso inexistente")
     void deveLancarIdosoNaoEncontradoAoCriarRotina() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
                 null, "Aspirina", "100mg", null, LocalTime.of(8, 0), "Diário", "TODOS", null, null, null
@@ -208,10 +199,10 @@ class RotinaMedicamentoServiceTest {
     }
 
     @Test
-    @DisplayName("Deve lançar PerfilNaoAutorizadoException quando usuário não for Familiar nem Médico")
+    @DisplayName("Deve lançar PerfilNaoAutorizadoException quando usuário não tiver vínculo com o idoso")
     void deveLancarPerfilNaoAutorizadoAoCriarRotina() {
-        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
 
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
                 null, "Aspirina", "100mg", null, LocalTime.of(8, 0), "Diário", "TODOS", null, null, null
@@ -225,8 +216,7 @@ class RotinaMedicamentoServiceTest {
     @DisplayName("Deve lançar MedicamentoNaoEncontradoException quando ID de medicamento não existir")
     void deveLancarMedicamentoNaoEncontradoQuandoIdInexistente() {
         UUID idInexistente = UUID.randomUUID();
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(medicamentoRepository.findById(idInexistente)).thenReturn(Optional.empty());
 
         RotinaMedicamentoRequestDTO request = new RotinaMedicamentoRequestDTO(
@@ -244,8 +234,6 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve listar rotina diária com status PENDENTE quando ainda não houve ingestão hoje")
     void deveListarRotinasDiariasComStatusPendente() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdosoIdAndAtivoWithDetails(idosoId, true))
                 .thenReturn(List.of(rotina));
         when(historicoMedicacaoRepository.findByRotinaIdAndDataHoraIngestaoBetweenOrderByDataHoraIngestaoDesc(
@@ -264,8 +252,6 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve listar rotina diária com status TOMADO quando ingestão foi registrada hoje")
     void deveListarRotinasDiariasComStatusTomado() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdosoIdAndAtivoWithDetails(idosoId, true))
                 .thenReturn(List.of(rotina));
 
@@ -303,7 +289,6 @@ class RotinaMedicamentoServiceTest {
         // Ingestão às 08:20 (20 minutos após -> dentro da tolerância de 30 min)
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 20), FUSO).toInstant();
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -334,7 +319,6 @@ class RotinaMedicamentoServiceTest {
         // Ingestão às 08:45 (45 minutos após -> atraso superior a 30 min)
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 45), FUSO).toInstant();
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -362,7 +346,6 @@ class RotinaMedicamentoServiceTest {
         LocalDate dataHoje = LocalDate.of(2026, 10, 1);
         Instant ingestaoInstant = ZonedDateTime.of(dataHoje, LocalTime.of(8, 0), FUSO).toInstant();
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> {
             HistoricoMedicacao h = i.getArgument(0);
@@ -386,7 +369,6 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve lançar RotinaMedicamentoNaoEncontradaException ao confirmar em rotina inexistente")
     void deveLancarRotinaNaoEncontradaAoConfirmarIngestao() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> rotinaMedicamentoService.confirmarIngestao(
@@ -401,7 +383,6 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve obter rotina por ID com sucesso")
     void deveObterRotinaPorIdComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
 
         RotinaMedicamentoResponseDTO response = rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioFamiliar);
@@ -414,7 +395,6 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve atualizar rotina de medicamento com sucesso")
     void deveAtualizarRotinaComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
         when(rotinaMedicamentoRepository.save(any(RotinaMedicamento.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -440,11 +420,93 @@ class RotinaMedicamentoServiceTest {
     @Test
     @DisplayName("Deve remover rotina de medicamento com sucesso")
     void deveRemoverRotinaComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
         when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
 
         rotinaMedicamentoService.removerRotina(rotinaId, usuarioFamiliar);
 
         verify(rotinaMedicamentoRepository).delete(rotina);
+    }
+
+    // =========================================================================
+    // Autorização por idoso (rotinas de outro idoso)
+    // =========================================================================
+
+    private void foraDaRede() {
+        PerfilNaoAutorizadoException negado = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        lenient().when(acessoIdosoService.exigirLeitura(usuarioSemPerfil, idosoId)).thenThrow(negado);
+        lenient().when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId)).thenThrow(negado);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo, listar as rotinas do idoso é negado e nada é consultado")
+    void semVinculoNaoListaRotinas() {
+        foraDaRede();
+
+        assertThatThrownBy(() -> rotinaMedicamentoService.listarRotinasDiarias(idosoId, null, null, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(rotinaMedicamentoRepository, never()).findByIdosoIdAndAtivoWithDetails(any(), any());
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso dono da rotina, obter, histórico, confirmar, atualizar e remover são negados")
+    void semVinculoComODonoDaRotinaNega() {
+        foraDaRede();
+        lenient().when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
+        lenient().when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
+
+        assertThatThrownBy(() -> rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> rotinaMedicamentoService.listarHistoricoRotina(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> rotinaMedicamentoService.confirmarIngestao(rotinaId, null, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> rotinaMedicamentoService.atualizarRotina(rotinaId,
+                new AtualizarRotinaRequestDTO(null, null, null, null, null, null, null, null, null), usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        assertThatThrownBy(() -> rotinaMedicamentoService.removerRotina(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(historicoMedicacaoRepository, never()).save(any());
+        verify(rotinaMedicamentoRepository, never()).save(any());
+        verify(rotinaMedicamentoRepository, never()).delete(any());
+        verify(acessoIdosoService, atLeastOnce()).exigirLeitura(usuarioSemPerfil, idosoId);
+    }
+
+    @Test
+    @DisplayName("O vínculo checado é o do idoso dono da rotina: leitura e confirmação aceitam o aparelho, edição e remoção não")
+    void checaOVinculoDoIdosoDonoDaRotina() {
+        when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
+        when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
+        when(rotinaMedicamentoRepository.save(any(RotinaMedicamento.class))).thenAnswer(i -> i.getArgument(0));
+        when(historicoMedicacaoRepository.save(any(HistoricoMedicacao.class))).thenAnswer(i -> i.getArgument(0));
+
+        rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioFamiliar);
+        rotinaMedicamentoService.listarHistoricoRotina(rotinaId, usuarioFamiliar);
+        rotinaMedicamentoService.confirmarIngestao(rotinaId, null, usuarioFamiliar);
+        verify(acessoIdosoService, times(3)).exigirLeitura(usuarioFamiliar, idosoId);
+        verify(acessoIdosoService, never()).exigirVinculo(any(), any());
+
+        rotinaMedicamentoService.atualizarRotina(rotinaId,
+                new AtualizarRotinaRequestDTO(null, null, null, null, null, null, null, null, null), usuarioFamiliar);
+        rotinaMedicamentoService.removerRotina(rotinaId, usuarioFamiliar);
+        verify(acessoIdosoService, times(2)).exigirVinculo(usuarioFamiliar, idosoId);
+        verify(acessoIdosoService, times(3)).exigirLeitura(any(), any());
+    }
+
+    @Test
+    @DisplayName("Sem vínculo, a rotina de outro idoso responde o mesmo 404 de rotina inexistente, sem citar o idoso")
+    void rotinaDeOutroIdosoViraRotinaNaoEncontrada() {
+        when(rotinaMedicamentoRepository.findByIdWithDetails(rotinaId)).thenReturn(Optional.of(rotina));
+        when(rotinaMedicamentoRepository.findById(rotinaId)).thenReturn(Optional.of(rotina));
+        when(acessoIdosoService.exigirLeitura(usuarioSemPerfil, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+        when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+
+        assertThatThrownBy(() -> rotinaMedicamentoService.obterRotinaPorId(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(RotinaMedicamentoNaoEncontradaException.class)
+                .hasMessageNotContaining(idosoId.toString());
+        assertThatThrownBy(() -> rotinaMedicamentoService.removerRotina(rotinaId, usuarioSemPerfil))
+                .isInstanceOf(RotinaMedicamentoNaoEncontradaException.class);
+        verify(rotinaMedicamentoRepository, never()).delete(any());
     }
 }

@@ -268,7 +268,7 @@ class IdosoIntegracaoTest {
         }
 
         @Test
-        @DisplayName("quem está fora da rede não edita: 403; idoso inexistente: 404")
+        @DisplayName("quem está fora da rede não edita e recebe o mesmo 404 de idoso inexistente")
         void foraDaRedeEInexistente() throws Exception {
             Idoso idoso = idosoDoAdmin("Maria", null);
             familiar(ESTRANHO);
@@ -276,7 +276,7 @@ class IdosoIntegracaoTest {
 
             mockMvc.perform(put("/api/v1/idosos/{id}", idoso.getId()).with(token(ESTRANHO))
                             .contentType(MediaType.APPLICATION_JSON).content(corpo))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isNotFound());
             mockMvc.perform(put("/api/v1/idosos/{id}", UUID.randomUUID()).with(token(ADMIN))
                             .contentType(MediaType.APPLICATION_JSON).content(corpo))
                     .andExpect(status().isNotFound());
@@ -327,7 +327,7 @@ class IdosoIntegracaoTest {
             mockMvc.perform(get("/api/v1/idosos/{id}", idoso.getId()).with(token(APOIO)))
                     .andExpect(status().isOk());
             mockMvc.perform(get("/api/v1/idosos/{id}", idoso.getId()).with(token(ESTRANHO)))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isNotFound());
             mockMvc.perform(get("/api/v1/idosos/{id}", UUID.randomUUID()).with(token(ADMIN)))
                     .andExpect(status().isNotFound());
             mockMvc.perform(get("/api/v1/idosos/{id}", idoso.getId()))

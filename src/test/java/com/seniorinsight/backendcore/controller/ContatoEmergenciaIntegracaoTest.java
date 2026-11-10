@@ -210,14 +210,13 @@ class ContatoEmergenciaIntegracaoTest {
     // ---------------------------------------------------------------- controle de acesso
 
     @Test
-    @DisplayName("Quem não é Administrador não escreve: apoio, estranho, médico e idoso pareado recebem 403")
+    @DisplayName("Quem não é Administrador não escreve: apoio e médico recebem 403; estranho e idoso pareado, 404")
     void soAdministradorEscreve() throws Exception {
         Idoso idoso = idosoComRede();
         JsonNode contato = adicionar(ADMIN, idoso, "Ana", "11987654321", null, 1, 201);
         String contatoId = contato.get("id").asText();
 
-        for (JwtRequestPostProcessor quem : List.of(token(APOIO), token(ESTRANHO), token(MEDICO),
-                tokenDoIdoso(idoso.getId()))) {
+        for (JwtRequestPostProcessor quem : List.of(token(APOIO), token(MEDICO))) {
             mockMvc.perform(post(BASE, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content(corpo("Novo", "11987654322", null, 2)))
                     .andExpect(status().isForbidden());
@@ -226,6 +225,17 @@ class ContatoEmergenciaIntegracaoTest {
                     .andExpect(status().isForbidden());
             mockMvc.perform(delete(BASE + "/{c}", idoso.getId(), contatoId).with(quem))
                     .andExpect(status().isForbidden());
+        }
+
+        for (JwtRequestPostProcessor quem : List.of(token(ESTRANHO), tokenDoIdoso(idoso.getId()))) {
+            mockMvc.perform(post(BASE, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
+                            .content(corpo("Novo", "11987654322", null, 2)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(put(BASE + "/{c}", idoso.getId(), contatoId).with(quem)
+                            .contentType(MediaType.APPLICATION_JSON).content(corpo("Ana", "11987654321", null, 1)))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(delete(BASE + "/{c}", idoso.getId(), contatoId).with(quem))
+                    .andExpect(status().isNotFound());
         }
 
         assertThat(contatoRepository.countByIdosoId(idoso.getId())).isEqualTo(1);
@@ -249,13 +259,13 @@ class ContatoEmergenciaIntegracaoTest {
     }
 
     @Test
-    @DisplayName("Sem vínculo, 403; conta de idoso de outro idoso, 403; sem token, 401")
+    @DisplayName("Sem vínculo, 404 (igual a idoso inexistente); conta de idoso de outro idoso, 404; sem token, 401")
     void leituraNegada() throws Exception {
         Idoso idoso = idosoComRede();
 
-        mockMvc.perform(get(BASE, idoso.getId()).with(token(ESTRANHO))).andExpect(status().isForbidden());
+        mockMvc.perform(get(BASE, idoso.getId()).with(token(ESTRANHO))).andExpect(status().isNotFound());
         mockMvc.perform(get(BASE, idoso.getId()).with(tokenDoIdoso(UUID.randomUUID())))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         mockMvc.perform(get(BASE, idoso.getId())).andExpect(status().isUnauthorized());
     }
 
@@ -272,8 +282,8 @@ class ContatoEmergenciaIntegracaoTest {
                 .claim("preferred_username", conta).claim("email_verified", true)
                 .claim("realm_access", Map.of("roles", List.of("familiar"))));
 
-        mockMvc.perform(get(BASE, idoso.getId()).with(naoVerificado)).andExpect(status().isForbidden());
-        mockMvc.perform(get(BASE, idoso.getId()).with(semRole)).andExpect(status().isForbidden());
+        mockMvc.perform(get(BASE, idoso.getId()).with(naoVerificado)).andExpect(status().isNotFound());
+        mockMvc.perform(get(BASE, idoso.getId()).with(semRole)).andExpect(status().isNotFound());
     }
 
     // ---------------------------------------------------------------- apoio
