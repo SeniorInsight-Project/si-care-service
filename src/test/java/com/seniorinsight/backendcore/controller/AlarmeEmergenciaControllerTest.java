@@ -11,7 +11,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -21,6 +25,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -34,6 +39,8 @@ import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.service.AlarmeEmergenciaService;
 
 @WebMvcTest(controllers = AlarmeEmergenciaController.class)
@@ -195,6 +202,74 @@ class AlarmeEmergenciaControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("Alarme Não Encontrado"));
+    }
+
+    // =========================================================================
+    // Autorização por idoso: sem token (401), sem vínculo (403) e com vínculo (200)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Todas as rotas de SOS respondem 401 sem token e não chegam ao serviço")
+    void todasAsRotasRetornam401SemToken() throws Exception {
+        String disparo = objectMapper.writeValueAsString(new DispararSosRequestDTO(-23.55, -46.63, 80, null));
+        String status = objectMapper.writeValueAsString(new AtualizarStatusAlarmeRequestDTO(StatusAlarme.RESOLVIDO, "x"));
+
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId).contentType(MediaType.APPLICATION_JSON)
+                .content(disparo)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/sos", idosoId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/sos/{alarmeId}", alarmeId)).andExpect(status().isUnauthorized());
+        mockMvc.perform(put("/api/v1/sos/{alarmeId}/status", alarmeId).contentType(MediaType.APPLICATION_JSON)
+                .content(status)).andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(alarmeEmergenciaService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, todas as rotas de SOS respondem 403 com o Erro do contrato")
+    void todasAsRotasRetornam403SemVinculo() throws Exception {
+        PerfilNaoAutorizadoException foraDaRede = new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso.");
+        when(alarmeEmergenciaService.dispararAlarme(eq(idosoId), any(), any())).thenThrow(foraDaRede);
+        when(alarmeEmergenciaService.listarPorIdoso(eq(idosoId), any())).thenThrow(foraDaRede);
+        when(alarmeEmergenciaService.buscarPorId(eq(alarmeId), any())).thenThrow(foraDaRede);
+        when(alarmeEmergenciaService.atualizarStatus(eq(alarmeId), any(), any())).thenThrow(foraDaRede);
+        String disparo = objectMapper.writeValueAsString(new DispararSosRequestDTO(-23.55, -46.63, 80, null));
+        String status = objectMapper.writeValueAsString(new AtualizarStatusAlarmeRequestDTO(StatusAlarme.RESOLVIDO, "x"));
+
+        mockMvc.perform(post("/api/v1/idosos/{idosoId}/sos", idosoId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content(disparo))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.error").value("Acesso Proibido"))
+                .andExpect(jsonPath("$.message").value("Você não faz parte da rede de proteção deste idoso."))
+                .andExpect(jsonPath("$.path").value("/api/v1/idosos/" + idosoId + "/sos"));
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/sos", idosoId).with(tokenFamiliar()))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+        mockMvc.perform(get("/api/v1/sos/{alarmeId}", alarmeId).with(tokenFamiliar()))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+        mockMvc.perform(put("/api/v1/sos/{alarmeId}/status", alarmeId).with(tokenFamiliar())
+                        .contentType(MediaType.APPLICATION_JSON).content(status))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("Acesso Proibido"));
+    }
+
+    @Test
+    @DisplayName("Com vínculo, GET /sos/{alarmeId} e GET /idosos/{idosoId}/sos respondem 200 e recebem o usuário do token")
+    void consultasComVinculoRetornam200() throws Exception {
+        AlarmeEmergenciaResponseDTO dto = new AlarmeEmergenciaResponseDTO(alarmeId, idosoId, "Sebastião da Silva",
+                -23.55, -46.63, 85, StatusAlarme.DISPARADO, "Botão acionado", Instant.now(), Instant.now(), null);
+        when(alarmeEmergenciaService.buscarPorId(eq(alarmeId), any())).thenReturn(dto);
+        when(alarmeEmergenciaService.listarPorIdoso(eq(idosoId), any())).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/sos/{alarmeId}", alarmeId).with(tokenFamiliar()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(alarmeId.toString()));
+        mockMvc.perform(get("/api/v1/idosos/{idosoId}/sos", idosoId).with(tokenFamiliar()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        ArgumentCaptor<UsuarioAutenticado> usuario = ArgumentCaptor.forClass(UsuarioAutenticado.class);
+        verify(alarmeEmergenciaService).buscarPorId(eq(alarmeId), usuario.capture());
+        assertThat(usuario.getValue().keycloakSub()).isEqualTo("sub-familiar");
+        verify(alarmeEmergenciaService).listarPorIdoso(eq(idosoId), any(UsuarioAutenticado.class));
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

@@ -17,10 +17,8 @@ import com.seniorinsight.backendcore.dto.AtualizarStatusAlarmeRequestDTO;
 import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
-import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 
 /**
  * Serviço de regras de negócio para o Botão de Alarme / SOS de Emergência (HU35).
@@ -34,15 +32,15 @@ public class AlarmeEmergenciaService {
     private static final Logger log = LoggerFactory.getLogger(AlarmeEmergenciaService.class);
 
     private final AlarmeEmergenciaRepository alarmeEmergenciaRepository;
-    private final IdosoRepository idosoRepository;
+    private final AcessoIdosoService acessoIdosoService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AlarmeEmergenciaService(
             AlarmeEmergenciaRepository alarmeEmergenciaRepository,
-            IdosoRepository idosoRepository,
+            AcessoIdosoService acessoIdosoService,
             ApplicationEventPublisher eventPublisher) {
         this.alarmeEmergenciaRepository = alarmeEmergenciaRepository;
-        this.idosoRepository = idosoRepository;
+        this.acessoIdosoService = acessoIdosoService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -63,11 +61,8 @@ public class AlarmeEmergenciaService {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
-        Idoso idoso = idosoRepository.findById(idosoId)
-                .orElseThrow(() -> {
-                    log.warn("[SISTEMA SOS] Idoso não encontrado ao tentar acionar SOS: {}", idosoId);
-                    return new IdosoNaoEncontradoException(idosoId);
-                });
+        // 404 se o idoso não existe; 403 se o usuário não é da rede, médico do idoso nem o aparelho pareado dele
+        Idoso idoso = acessoIdosoService.exigirLeitura(usuarioAutenticado, idosoId);
 
         AlarmeEmergencia alarme = AlarmeEmergencia.builder()
                 .idoso(idoso)
@@ -125,6 +120,8 @@ public class AlarmeEmergenciaService {
                     return new AlarmeNaoEncontradoException(alarmeId);
                 });
 
+        acessoIdosoService.exigirLeitura(usuarioAutenticado, alarme.getIdoso().getId());
+
         alarme.atualizarStatus(request.status(), request.observacao());
         AlarmeEmergencia atualizado = alarmeEmergenciaRepository.save(alarme);
 
@@ -141,16 +138,19 @@ public class AlarmeEmergenciaService {
      * Consulta os detalhes de um alarme de emergência pelo seu identificador único.
      *
      * @param alarmeId Identificador único do alarme
+     * @param usuarioAutenticado Usuário que consulta; precisa ter acesso ao idoso dono do alarme
      * @return DTO com os dados do alarme
      */
     @Transactional(readOnly = true)
-    public AlarmeEmergenciaResponseDTO buscarPorId(UUID alarmeId) {
+    public AlarmeEmergenciaResponseDTO buscarPorId(UUID alarmeId, UsuarioAutenticado usuarioAutenticado) {
         if (alarmeId == null) {
             throw new IllegalArgumentException("O identificador do alarme não pode ser nulo.");
         }
 
         AlarmeEmergencia alarme = alarmeEmergenciaRepository.findById(alarmeId)
                 .orElseThrow(() -> new AlarmeNaoEncontradoException(alarmeId));
+
+        acessoIdosoService.exigirLeitura(usuarioAutenticado, alarme.getIdoso().getId());
 
         return AlarmeEmergenciaResponseDTO.fromEntity(alarme, "Alarme localizado com sucesso.");
     }
@@ -159,17 +159,16 @@ public class AlarmeEmergenciaService {
      * Lista o histórico de alarmes de emergência de um idoso em ordem cronológica decrescente.
      *
      * @param idosoId Identificador do idoso
+     * @param usuarioAutenticado Usuário que consulta; precisa ter acesso ao idoso
      * @return Lista de DTOs com o histórico de alarmes
      */
     @Transactional(readOnly = true)
-    public List<AlarmeEmergenciaResponseDTO> listarPorIdoso(UUID idosoId) {
+    public List<AlarmeEmergenciaResponseDTO> listarPorIdoso(UUID idosoId, UsuarioAutenticado usuarioAutenticado) {
         if (idosoId == null) {
             throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
         }
 
-        if (!idosoRepository.existsById(idosoId)) {
-            throw new IdosoNaoEncontradoException(idosoId);
-        }
+        acessoIdosoService.exigirLeitura(usuarioAutenticado, idosoId);
 
         return alarmeEmergenciaRepository.findByIdosoIdOrderByCriadoEmDesc(idosoId)
                 .stream()

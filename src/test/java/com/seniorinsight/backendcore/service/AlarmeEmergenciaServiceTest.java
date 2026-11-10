@@ -29,9 +29,9 @@ import com.seniorinsight.backendcore.dto.DispararSosRequestDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
 import com.seniorinsight.backendcore.exception.AlarmeNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,7 +43,7 @@ class AlarmeEmergenciaServiceTest {
     private AlarmeEmergenciaRepository alarmeEmergenciaRepository;
 
     @Mock
-    private IdosoRepository idosoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -93,7 +93,7 @@ class AlarmeEmergenciaServiceTest {
     void deveDispararAlarmeComSucessoEPublicarEvento() {
         DispararSosRequestDTO request = new DispararSosRequestDTO(-23.550520, -46.633308, 85, "Disparo de emergência móvel");
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(mockIdoso));
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenReturn(mockIdoso);
         when(alarmeEmergenciaRepository.save(any(AlarmeEmergencia.class))).thenAnswer(invocation -> {
             AlarmeEmergencia a = invocation.getArgument(0);
             a.setId(alarmeId);
@@ -133,7 +133,7 @@ class AlarmeEmergenciaServiceTest {
     @DisplayName("Deve lançar IdosoNaoEncontradoException ao tentar disparar SOS para idoso inexistente")
     void deveLancarExcecaoQuandoIdosoNaoEncontradoAoDisparar() {
         DispararSosRequestDTO request = new DispararSosRequestDTO(-23.550520, -46.633308, 50, null);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         assertThatThrownBy(() -> alarmeEmergenciaService.dispararAlarme(idosoId, request, mockUsuario))
                 .isInstanceOf(IdosoNaoEncontradoException.class)
@@ -172,6 +172,7 @@ class AlarmeEmergenciaServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.status()).isEqualTo(StatusAlarme.EM_ATENDIMENTO);
         assertThat(response.observacao()).isEqualTo("Equipe médica a caminho");
+        verify(acessoIdosoService).exigirLeitura(mockUsuario, idosoId);
         verify(alarmeEmergenciaRepository).save(mockAlarme);
     }
 
@@ -227,22 +228,75 @@ class AlarmeEmergenciaServiceTest {
     void deveBuscarAlarmePorIdComSucesso() {
         when(alarmeEmergenciaRepository.findById(alarmeId)).thenReturn(Optional.of(mockAlarme));
 
-        AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.buscarPorId(alarmeId);
+        AlarmeEmergenciaResponseDTO response = alarmeEmergenciaService.buscarPorId(alarmeId, mockUsuario);
 
         assertThat(response).isNotNull();
         assertThat(response.id()).isEqualTo(alarmeId);
         assertThat(response.status()).isEqualTo(StatusAlarme.DISPARADO);
+        verify(acessoIdosoService).exigirLeitura(mockUsuario, idosoId);
     }
 
     @Test
     @DisplayName("Deve listar histórico de alarmes do idoso")
     void deveListarAlarmesDoIdoso() {
-        when(idosoRepository.existsById(idosoId)).thenReturn(true);
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenReturn(mockIdoso);
         when(alarmeEmergenciaRepository.findByIdosoIdOrderByCriadoEmDesc(idosoId)).thenReturn(List.of(mockAlarme));
 
-        List<AlarmeEmergenciaResponseDTO> lista = alarmeEmergenciaService.listarPorIdoso(idosoId);
+        List<AlarmeEmergenciaResponseDTO> lista = alarmeEmergenciaService.listarPorIdoso(idosoId, mockUsuario);
 
         assertThat(lista).hasSize(1);
         assertThat(lista.get(0).id()).isEqualTo(alarmeId);
+    }
+
+    // =========================================================================
+    // Autorização por idoso (sem vínculo com o idoso dono do alarme)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, disparar SOS é negado e nada é gravado nem publicado")
+    void semVinculoNaoDisparaAlarme() {
+        DispararSosRequestDTO request = new DispararSosRequestDTO(-23.550520, -46.633308, 50, null);
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new PerfilNaoAutorizadoException("fora da rede"));
+
+        assertThatThrownBy(() -> alarmeEmergenciaService.dispararAlarme(idosoId, request, mockUsuario))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(alarmeEmergenciaRepository, never()).save(any());
+        verify(eventPublisher, never()).publishEvent(any());
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso dono do alarme, atualizar o status é negado e o alarme não muda")
+    void semVinculoNaoAtualizaStatus() {
+        AtualizarStatusAlarmeRequestDTO request = new AtualizarStatusAlarmeRequestDTO(StatusAlarme.RESOLVIDO, "x");
+        when(alarmeEmergenciaRepository.findById(alarmeId)).thenReturn(Optional.of(mockAlarme));
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new PerfilNaoAutorizadoException("fora da rede"));
+
+        assertThatThrownBy(() -> alarmeEmergenciaService.atualizarStatus(alarmeId, request, mockUsuario))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        assertThat(mockAlarme.getStatus()).isEqualTo(StatusAlarme.DISPARADO);
+        verify(alarmeEmergenciaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso dono do alarme, consultar o alarme é negado")
+    void semVinculoNaoBuscaAlarme() {
+        when(alarmeEmergenciaRepository.findById(alarmeId)).thenReturn(Optional.of(mockAlarme));
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new PerfilNaoAutorizadoException("fora da rede"));
+
+        assertThatThrownBy(() -> alarmeEmergenciaService.buscarPorId(alarmeId, mockUsuario))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, listar o histórico é negado e nada é consultado")
+    void semVinculoNaoListaAlarmes() {
+        when(acessoIdosoService.exigirLeitura(mockUsuario, idosoId)).thenThrow(new PerfilNaoAutorizadoException("fora da rede"));
+
+        assertThatThrownBy(() -> alarmeEmergenciaService.listarPorIdoso(idosoId, mockUsuario))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(alarmeEmergenciaRepository, never()).findByIdosoIdOrderByCriadoEmDesc(any());
     }
 }
