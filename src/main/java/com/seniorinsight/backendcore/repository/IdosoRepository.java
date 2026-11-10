@@ -1,9 +1,12 @@
 package com.seniorinsight.backendcore.repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.seniorinsight.backendcore.domain.Idoso;
@@ -14,4 +17,17 @@ public interface IdosoRepository extends JpaRepository<Idoso, UUID> {
     Optional<Idoso> findByCpf(String cpf);
 
     boolean existsByCpf(String cpf);
+
+    boolean existsByCpfAndIdNot(String cpf, UUID id);
+
+    /** Idosos em que o familiar tem vínculo na rede. */
+    @Query("SELECT v.idoso FROM VinculoRede v WHERE v.familiar.keycloakSub = :sub")
+    List<Idoso> findByFamiliarKeycloakSub(@Param("sub") String sub);
+
+    /** Idosos acompanhados pelo médico. */
+    @Query("SELECT i FROM Idoso i JOIN i.medicos m WHERE m.keycloakSub = :sub")
+    List<Idoso> findByMedicoKeycloakSub(@Param("sub") String sub);
+
+    @Query("SELECT COUNT(i) > 0 FROM Idoso i JOIN i.medicos m WHERE i.id = :idosoId AND m.keycloakSub = :sub")
+    boolean medicoAcompanha(@Param("idosoId") UUID idosoId, @Param("sub") String sub);
 }

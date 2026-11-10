@@ -27,4 +27,8 @@ public interface VinculoRedeRepository extends JpaRepository<VinculoRede, UUID> 
     Optional<VinculoRede> findByFamiliarAndIdoso(Familiar familiar, Idoso idoso);
 
     boolean existsByFamiliarAndIdoso(Familiar familiar, Idoso idoso);
+
+    Optional<VinculoRede> findByFamiliar_KeycloakSubAndIdoso_Id(String keycloakSub, UUID idosoId);
+
+    long countByIdoso_IdAndPapelAcesso(UUID idosoId, String papelAcesso);
 }
