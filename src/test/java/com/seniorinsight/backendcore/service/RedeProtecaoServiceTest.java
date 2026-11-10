@@ -293,4 +293,35 @@ class RedeProtecaoServiceTest {
 
         verify(vinculoRedeRepository, never()).findByIdosoIdWithFamiliar(any());
     }
+
+    @Test
+    @DisplayName("Convite com papel Administrador é recusado (RN-012), em qualquer caixa, e nada é gravado")
+    void conviteNaoConcedeAdministrador() {
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+
+        for (String papel : List.of("ADMINISTRADOR", "administrador", " Administrador ")) {
+            ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", papel, "Neta", null);
+            assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Administrador");
+        }
+
+        verify(conviteRedeRepository, never()).save(any());
+        verifyNoInteractions(simuladorEmailService);
+    }
+
+    @Test
+    @DisplayName("Convite antigo com papel Administrador não vira vínculo ao ser aceito")
+    void aceiteDeConviteAntigoDeAdministradorEhRecusado() {
+        ConviteRede convite = ConviteRede.builder().idoso(idoso).email("neta@seniorinsight.com")
+                .token("tok").papelAcessoSugerido("ADMINISTRADOR").status(StatusConvite.PENDENTE)
+                .dataExpiracao(Instant.now().plusSeconds(3600)).build();
+        when(familiarRepository.findByKeycloakSub(usuarioConvidado.keycloakSub())).thenReturn(Optional.of(familiarConvidado));
+        when(conviteRedeRepository.findByTokenWithIdoso("tok")).thenReturn(Optional.of(convite));
+
+        assertThatThrownBy(() -> redeProtecaoService.aceitarConvite("tok", usuarioConvidado))
+                .isInstanceOf(ConviteInvalidoException.class);
+
+        verify(vinculoRedeRepository, never()).save(any());
+    }
 }

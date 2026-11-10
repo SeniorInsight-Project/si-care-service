@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.seniorinsight.backendcore.domain.ConviteRede;
 import com.seniorinsight.backendcore.domain.Familiar;
 import com.seniorinsight.backendcore.domain.Idoso;
+import com.seniorinsight.backendcore.domain.PapelAcesso;
 import com.seniorinsight.backendcore.domain.StatusConvite;
 import com.seniorinsight.backendcore.domain.VinculoRede;
 import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
@@ -80,6 +81,12 @@ public class RedeProtecaoService {
 
         // Só quem já está na rede do idoso (Familiar com vínculo) ou o médico que o acompanha emite convite
         Idoso idoso = acessoIdosoService.exigirVinculo(usuario, idosoId);
+
+        // RN-012: o Administrador é único por idoso e nasce com o cadastro; convite não cria outro
+        if (PapelAcesso.ADMINISTRADOR.equalsIgnoreCase(request.papelAcesso().trim())) {
+            throw new IllegalArgumentException(
+                    "O papel Administrador não pode ser concedido por convite: há um único Administrador por idoso.");
+        }
 
         String emailDestinatario = request.email().trim().toLowerCase();
 
@@ -187,6 +194,12 @@ public class RedeProtecaoService {
             conviteRedeRepository.save(convite);
             log.warn("Tentativa de aceite do convite {} expirado em {}.", convite.getId(), convite.getDataExpiracao());
             throw new ConviteExpiradoException("O convite expirou. O prazo de validade temporal de 48 horas foi ultrapassado.");
+        }
+
+        // Convites emitidos antes desta regra com papel Administrador também não viram vínculo
+        if (PapelAcesso.ADMINISTRADOR.equalsIgnoreCase(convite.getPapelAcessoSugerido().trim())) {
+            throw new ConviteInvalidoException(
+                    "Este convite concede o papel Administrador, que não pode ser concedido por convite.");
         }
 
         Idoso idoso = convite.getIdoso();
