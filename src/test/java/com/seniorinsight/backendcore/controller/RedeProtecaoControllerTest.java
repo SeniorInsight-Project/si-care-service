@@ -32,11 +32,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.seniorinsight.backendcore.config.SecurityConfig;
 import com.seniorinsight.backendcore.domain.StatusConvite;
 import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
+import com.seniorinsight.backendcore.dto.ConvitePublicoDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
 import com.seniorinsight.backendcore.exception.ConviteExpiradoException;
 import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
+import com.seniorinsight.backendcore.exception.ConviteJaAceitoException;
+import com.seniorinsight.backendcore.exception.ConviteNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.service.RedeProtecaoService;
@@ -191,6 +194,87 @@ class RedeProtecaoControllerTest {
                         .param("token", token))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Convite Inválido"));
+    }
+
+    // =========================================================================
+    // GET /api/v1/convites?token=
+    // =========================================================================
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 401 sem token JWT e não chegar ao serviço")
+    void deveRetornar401AoConsultarConviteNaoAutenticado() throws Exception {
+        mockMvc.perform(get("/api/v1/convites").param("token", "abc"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(redeProtecaoService);
+    }
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 200 só com os campos do ConvitePublico")
+    void deveConsultarConviteComSucesso() throws Exception {
+        String token = UUID.randomUUID().toString();
+        Instant expiraEm = Instant.parse("2026-11-20T18:30:00Z");
+
+        when(redeProtecaoService.consultarConvite(eq(token), any()))
+                .thenReturn(new ConvitePublicoDTO("Carlos Eduardo Souza", "Maria", "CUIDADOR", "Filho",
+                        expiraEm, StatusConvite.PENDENTE));
+
+        mockMvc.perform(get("/api/v1/convites").with(tokenFamiliar()).param("token", token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nomeConvidante").value("Carlos Eduardo Souza"))
+                .andExpect(jsonPath("$.primeiroNomeIdoso").value("Maria"))
+                .andExpect(jsonPath("$.papelAcesso").value("CUIDADOR"))
+                .andExpect(jsonPath("$.grauParentesco").value("Filho"))
+                .andExpect(jsonPath("$.expiraEm").value("2026-11-20T18:30:00Z"))
+                .andExpect(jsonPath("$.status").value("PENDENTE"))
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$.email").doesNotExist())
+                .andExpect(jsonPath("$.token").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 404 quando o token não existe")
+    void deveRetornar404AoConsultarConviteInexistente() throws Exception {
+        when(redeProtecaoService.consultarConvite(eq("inexistente"), any()))
+                .thenThrow(new ConviteNaoEncontradoException("Convite não encontrado"));
+
+        mockMvc.perform(get("/api/v1/convites").with(tokenFamiliar()).param("token", "inexistente"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Convite não encontrado"))
+                .andExpect(jsonPath("$.path").value("/api/v1/convites"));
+    }
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 409 quando o convite já foi aceito")
+    void deveRetornar409AoConsultarConviteJaAceito() throws Exception {
+        when(redeProtecaoService.consultarConvite(eq("aceito"), any()))
+                .thenThrow(new ConviteJaAceitoException("Convite já foi aceito"));
+
+        mockMvc.perform(get("/api/v1/convites").with(tokenFamiliar()).param("token", "aceito"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.message").value("Convite já foi aceito"));
+    }
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 410 quando o convite expirou")
+    void deveRetornar410AoConsultarConviteExpirado() throws Exception {
+        when(redeProtecaoService.consultarConvite(eq("expirado"), any()))
+                .thenThrow(new ConviteExpiradoException("Convite expirado"));
+
+        mockMvc.perform(get("/api/v1/convites").with(tokenFamiliar()).param("token", "expirado"))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.status").value(410))
+                .andExpect(jsonPath("$.message").value("Convite expirado"));
+    }
+
+    @Test
+    @DisplayName("GET consultar convite deve retornar 400 quando o token não é enviado")
+    void deveRetornar400AoConsultarConviteSemToken() throws Exception {
+        mockMvc.perform(get("/api/v1/convites").with(tokenFamiliar()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
     }
 
     // =========================================================================
