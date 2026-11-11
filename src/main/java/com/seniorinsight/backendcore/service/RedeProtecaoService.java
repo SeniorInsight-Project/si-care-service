@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -14,21 +15,26 @@ import org.springframework.transaction.annotation.Transactional;
 import com.seniorinsight.backendcore.domain.ConviteRede;
 import com.seniorinsight.backendcore.domain.Familiar;
 import com.seniorinsight.backendcore.domain.Idoso;
+import com.seniorinsight.backendcore.domain.Medico;
 import com.seniorinsight.backendcore.domain.PapelAcesso;
 import com.seniorinsight.backendcore.domain.StatusConvite;
 import com.seniorinsight.backendcore.domain.VinculoRede;
 import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
+import com.seniorinsight.backendcore.dto.ConvitePublicoDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
 import com.seniorinsight.backendcore.exception.ConviteExpiradoException;
 import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
+import com.seniorinsight.backendcore.exception.ConviteJaAceitoException;
+import com.seniorinsight.backendcore.exception.ConviteNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.VinculoJaExistenteException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.security.UsuarioAutenticadoArgumentResolver;
 import com.seniorinsight.backendcore.repository.ConviteRedeRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
+import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
 /**
@@ -41,9 +47,12 @@ public class RedeProtecaoService {
 
     private static final Logger log = LoggerFactory.getLogger(RedeProtecaoService.class);
 
+    private static final String NOME_CONVIDANTE_PADRAO = "Um familiar do idoso";
+
     private final ConviteRedeRepository conviteRedeRepository;
     private final VinculoRedeRepository vinculoRedeRepository;
     private final FamiliarRepository familiarRepository;
+    private final MedicoRepository medicoRepository;
     private final AcessoIdosoService acessoIdosoService;
     private final SimuladorEmailService simuladorEmailService;
 
@@ -51,11 +60,13 @@ public class RedeProtecaoService {
             ConviteRedeRepository conviteRedeRepository,
             VinculoRedeRepository vinculoRedeRepository,
             FamiliarRepository familiarRepository,
+            MedicoRepository medicoRepository,
             AcessoIdosoService acessoIdosoService,
             SimuladorEmailService simuladorEmailService) {
         this.conviteRedeRepository = conviteRedeRepository;
         this.vinculoRedeRepository = vinculoRedeRepository;
         this.familiarRepository = familiarRepository;
+        this.medicoRepository = medicoRepository;
         this.acessoIdosoService = acessoIdosoService;
         this.simuladorEmailService = simuladorEmailService;
     }
@@ -174,12 +185,11 @@ public class RedeProtecaoService {
                             "Perfil não encontrado para este usuário. Apenas Familiares podem aceitar convites para a Rede de Proteção.");
                 });
 
-        ConviteRede convite = conviteRedeRepository.findByTokenWithIdoso(token.trim())
-                .orElseGet(() -> conviteRedeRepository.findByToken(token.trim())
-                        .orElseThrow(() -> {
-                            log.warn("Tentativa de aceite com token de convite inexistente.");
-                            return new ConviteInvalidoException("Convite não encontrado para o token informado.");
-                        }));
+        ConviteRede convite = buscarConvitePorToken(token)
+                .orElseThrow(() -> {
+                    log.warn("Tentativa de aceite com token de convite inexistente.");
+                    return new ConviteInvalidoException("Convite não encontrado para o token informado.");
+                });
 
         if (convite.getStatus() == StatusConvite.ACEITO) {
             throw new ConviteInvalidoException("Este convite já foi aceito anteriormente.");
@@ -246,6 +256,50 @@ public class RedeProtecaoService {
     }
 
     /**
+     * Consulta o convite pelo token, sem alterá-lo, para a tela de aceite mostrar quem convidou e para qual idoso.
+     * Exige só usuário autenticado: quem consulta ainda não faz parte da rede do idoso.
+     *
+     * @param token Token temporal recebido no e-mail do convite
+     * @param usuarioAutenticado Usuário autenticado que está consultando
+     * @return DTO com os dados públicos do convite pendente
+     */
+    @Transactional(readOnly = true)
+    public ConvitePublicoDTO consultarConvite(String token, UsuarioAutenticado usuarioAutenticado) {
+        if (token == null || token.trim().isBlank()) {
+            throw new IllegalArgumentException("O token de convite é obrigatório.");
+        }
+
+        resolverUsuarioAutenticado(usuarioAutenticado);
+
+        ConviteRede convite = buscarConvitePorToken(token)
+                .orElseThrow(() -> {
+                    log.warn("Consulta com token de convite inexistente.");
+                    return new ConviteNaoEncontradoException("Convite não encontrado");
+                });
+
+        if (convite.getStatus() == StatusConvite.ACEITO) {
+            throw new ConviteJaAceitoException("Convite já foi aceito");
+        }
+
+        if (convite.getStatus() == StatusConvite.CANCELADO) {
+            throw new ConviteExpiradoException("Convite cancelado");
+        }
+
+        if (convite.isExpirado()) {
+            throw new ConviteExpiradoException("Convite expirado");
+        }
+
+        return new ConvitePublicoDTO(
+                nomeDoConvidante(convite.getCriadoPorSub()),
+                primeiroNome(convite.getIdoso().getNomeCompleto()),
+                convite.getPapelAcessoSugerido(),
+                convite.getGrauParentescoSugerido(),
+                convite.getDataExpiracao(),
+                convite.getStatus()
+        );
+    }
+
+    /**
      * Lista todos os membros vinculados à Rede de Proteção do Idoso convertendo para DTO amigável.
      *
      * @param idosoId Identificador único do idoso
@@ -279,6 +333,29 @@ public class RedeProtecaoService {
                         v.getCriadoEm()
                 ))
                 .toList();
+    }
+
+    /**
+     * Busca o convite pelo token, com o idoso carregado quando possível. Usada no aceite e na consulta.
+     */
+    private Optional<ConviteRede> buscarConvitePorToken(String token) {
+        String tokenLimpo = token.trim();
+        return conviteRedeRepository.findByTokenWithIdoso(tokenLimpo)
+                .or(() -> conviteRedeRepository.findByToken(tokenLimpo));
+    }
+
+    private String nomeDoConvidante(String criadoPorSub) {
+        if (criadoPorSub == null || criadoPorSub.isBlank()) {
+            return NOME_CONVIDANTE_PADRAO;
+        }
+        return familiarRepository.findByKeycloakSub(criadoPorSub)
+                .map(Familiar::getNomeCompleto)
+                .or(() -> medicoRepository.findByKeycloakSub(criadoPorSub).map(Medico::getNomeCompleto))
+                .orElse(NOME_CONVIDANTE_PADRAO);
+    }
+
+    private static String primeiroNome(String nomeCompleto) {
+        return nomeCompleto.trim().split("\\s+")[0];
     }
 
     private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {
