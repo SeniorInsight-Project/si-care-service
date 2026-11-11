@@ -8,6 +8,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -34,9 +37,52 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.CONFLICT, "Vínculo Já Existente", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(CpfJaCadastradoException.class)
+    public ResponseEntity<Map<String, Object>> handleCpfJaCadastrado(CpfJaCadastradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "CPF Já Cadastrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(LimiteContatosEmergenciaException.class)
+    public ResponseEntity<Map<String, Object>> handleLimiteContatos(LimiteContatosEmergenciaException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Limite de Contatos Atingido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ContatoEmergenciaNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleContatoNaoEncontrado(ContatoEmergenciaNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Contato de Emergência Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleCorpoIlegivel(HttpMessageNotReadableException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Requisição Inválida",
+                "O corpo da requisição está ausente ou malformado.", request.getRequestURI());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, Object>> handleParametroInvalido(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Requisição Inválida",
+                "O valor informado para '" + ex.getName() + "' é inválido.", request.getRequestURI());
+    }
+
     @ExceptionHandler(ConviteInvalidoException.class)
     public ResponseEntity<Map<String, Object>> handleConviteInvalido(ConviteInvalidoException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Convite Inválido", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteNaoEncontrado(ConviteNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Convite Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(ConviteJaAceitoException.class)
+    public ResponseEntity<Map<String, Object>> handleConviteJaAceito(ConviteJaAceitoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.CONFLICT, "Convite Já Aceito", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, Object>> handleParametroAusente(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "Requisição Inválida",
+                "O parâmetro '" + ex.getParameterName() + "' é obrigatório.", request.getRequestURI());
     }
 
     @ExceptionHandler(ConviteExpiradoException.class)
@@ -57,6 +103,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IdosoNaoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> handleIdosoNaoEncontrado(IdosoNaoEncontradoException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Idoso Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(FamiliarNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleFamiliarNaoEncontrado(FamiliarNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Familiar Não Encontrado", ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(RotinaMedicamentoNaoEncontradaException.class)

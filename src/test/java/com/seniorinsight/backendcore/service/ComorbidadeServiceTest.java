@@ -28,9 +28,7 @@ import com.seniorinsight.backendcore.exception.ComorbidadeNaoEncontradaException
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
-import com.seniorinsight.backendcore.repository.FamiliarRepository;
 import com.seniorinsight.backendcore.repository.IdosoRepository;
-import com.seniorinsight.backendcore.repository.MedicoRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ComorbidadeServiceTest {
@@ -39,10 +37,7 @@ class ComorbidadeServiceTest {
     private IdosoRepository idosoRepository;
 
     @Mock
-    private FamiliarRepository familiarRepository;
-
-    @Mock
-    private MedicoRepository medicoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @InjectMocks
     private ComorbidadeService comorbidadeService;
@@ -78,8 +73,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve adicionar comorbidades com sucesso quando usuário for Familiar")
     void deveAdicionarComorbidadesPorFamiliarComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes Mellitus Tipo 2", "Artrose"));
@@ -95,9 +89,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve adicionar comorbidades com sucesso quando usuário for Médico")
     void deveAdicionarComorbidadesPorMedicoComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioMedico, idosoId)).thenReturn(idoso);
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Insuficiência Cardíaca"));
@@ -111,14 +103,14 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar PerfilNaoAutorizadoException quando usuário não for Familiar nem Médico")
     void deveLancarPerfilNaoAutorizadoQuandoUsuarioNaoTiverPerfil() {
-        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes"));
 
         assertThatThrownBy(() -> comorbidadeService.adicionarComorbidades(idosoId, request, usuarioSemPerfil))
                 .isInstanceOf(PerfilNaoAutorizadoException.class)
-                .hasMessageContaining("Perfil não encontrado para este usuário");
+                .hasMessageContaining("rede de proteção");
 
         verify(idosoRepository, never()).save(any());
     }
@@ -126,8 +118,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar IdosoNaoEncontradoException quando o idoso não existir")
     void deveLancarIdosoNaoEncontradoAoAdicionarComorbidade() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("Diabetes"));
 
@@ -138,8 +129,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar ComorbidadeJaCadastradaException quando todas as comorbidades informadas já existirem")
     void deveLancarComorbidadeJaCadastradaQuandoJaExistir() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
 
         // Idoso já possui "Hipertensão Arterial"
         ComorbidadeRequestDTO request = new ComorbidadeRequestDTO(List.of("hipertensão arterial"));
@@ -158,9 +148,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve remover comorbidade com sucesso quando comorbidade existir na lista")
     void deveRemoverComorbidadeComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(usuarioMedico.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioMedico, idosoId)).thenReturn(idoso);
         when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         ComorbidadesResponseDTO response = comorbidadeService.removerComorbidade(idosoId, "hipertensão arterial", usuarioMedico);
@@ -173,8 +161,7 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar ComorbidadeNaoEncontradaException quando comorbidade a ser removida não constar no idoso")
     void deveLancarComorbidadeNaoEncontradaQuandoNaoExistirNaLista() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
 
         assertThatThrownBy(() -> comorbidadeService.removerComorbidade(idosoId, "Osteoporose", usuarioFamiliar))
                 .isInstanceOf(ComorbidadeNaoEncontradaException.class)
@@ -186,8 +173,8 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve lançar PerfilNaoAutorizadoException ao tentar remover sem perfil de Familiar ou Médico")
     void deveLancarPerfilNaoAutorizadoAoRemoverComorbidade() {
-        when(familiarRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
-        when(medicoRepository.existsByKeycloakSub(usuarioSemPerfil.keycloakSub())).thenReturn(false);
+        when(acessoIdosoService.exigirVinculo(usuarioSemPerfil, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
 
         assertThatThrownBy(() -> comorbidadeService.removerComorbidade(idosoId, "Hipertensão Arterial", usuarioSemPerfil))
                 .isInstanceOf(PerfilNaoAutorizadoException.class);
@@ -202,12 +189,34 @@ class ComorbidadeServiceTest {
     @Test
     @DisplayName("Deve listar comorbidades do idoso com sucesso")
     void deveListarComorbidadesComSucesso() {
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirLeitura(usuarioFamiliar, idosoId)).thenReturn(idoso);
 
         ComorbidadesResponseDTO response = comorbidadeService.listarComorbidades(idosoId, usuarioFamiliar);
 
         assertThat(response).isNotNull();
         assertThat(response.comorbidades()).containsExactly("Hipertensão Arterial");
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, listar é negado (403) e nada é lido")
+    void deveNegarListagemSemVinculo() {
+        when(acessoIdosoService.exigirLeitura(usuarioSemPerfil, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> comorbidadeService.listarComorbidades(idosoId, usuarioSemPerfil))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+    }
+
+    @Test
+    @DisplayName("A escrita exige vínculo de rede ou médico, não o aparelho do idoso (exigirVinculo, não exigirLeitura)")
+    void escritaUsaExigirVinculo() {
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+        when(idosoRepository.save(any(Idoso.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        comorbidadeService.adicionarComorbidades(idosoId, new ComorbidadeRequestDTO(List.of("Artrose")), usuarioFamiliar);
+        comorbidadeService.removerComorbidade(idosoId, "Artrose", usuarioFamiliar);
+
+        verify(acessoIdosoService, org.mockito.Mockito.times(2)).exigirVinculo(usuarioFamiliar, idosoId);
+        verify(acessoIdosoService, never()).exigirLeitura(any(), any());
     }
 }

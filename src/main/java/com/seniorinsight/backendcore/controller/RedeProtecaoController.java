@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
+import com.seniorinsight.backendcore.dto.ConvitePublicoDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
@@ -89,6 +90,46 @@ public class RedeProtecaoController {
     }
 
     @Operation(
+            summary = "Consulta o convite pelo token, antes de aceitar (HU16)",
+            description = "Mostra quem convidou, o primeiro nome do idoso e o papel oferecido, para a tela de aceite " +
+                    "exibir antes de chamar `POST /api/v1/convites/aceitar`. Exige JWT válido, mas não exige vínculo " +
+                    "com o idoso, e não altera o convite. Não devolve e-mail, telefone nem dado de saúde."
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Convite pendente e dentro da validade.",
+                    content = @Content(mediaType = "application/json", schema = @Schema(implementation = ConvitePublicoDTO.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Token ausente ou em branco."
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Token JWT ausente, inválido ou expirado."
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Token inexistente."
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Convite já aceito."
+            ),
+            @ApiResponse(
+                    responseCode = "410",
+                    description = "Convite expirado ou cancelado."
+            )
+    })
+    @GetMapping("/convites")
+    public ResponseEntity<ConvitePublicoDTO> consultarConvite(
+            @RequestParam("token") String token,
+            @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
+        return ResponseEntity.ok(redeProtecaoService.consultarConvite(token, usuarioAutenticado));
+    }
+
+    @Operation(
             summary = "Aceita um convite para a Rede de Proteção (HU16)",
             description = "Valida o token temporal de 48h recebido via parâmetro e cria o registro na tabela " +
                     "`vinculos_rede`, associando o familiar logado ao respectivo idoso monitorado."
@@ -145,7 +186,7 @@ public class RedeProtecaoController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil autorizado (Familiar ou Médico)."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha este idoso."
             ),
             @ApiResponse(
                     responseCode = "404",

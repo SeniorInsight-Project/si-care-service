@@ -67,6 +67,7 @@ public class TelemetriaWearableController {
             ),
             @ApiResponse(responseCode = "400", description = "Payload de telemetria inválido ou fora dos limites clínicos."),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado na base de dados.")
     })
     @PostMapping({"/idosos/{idosoId}/telemetria-wearable", "/telemetria-wearable/ingestao"})
@@ -75,7 +76,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody TelemetriaWearableRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(finalId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarTelemetria(usuarioAutenticado, finalId, request);
 
         if ("ALERTA_QUEDA_DISPARADO".equals(response.statusProcessamento())) {
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
@@ -95,6 +96,7 @@ public class TelemetriaWearableController {
             ),
             @ApiResponse(responseCode = "400", description = "Lote vazio ou dados inválidos."),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @PostMapping({"/idosos/{idosoId}/telemetria-wearable/lote", "/telemetria-wearable/lote"})
@@ -102,7 +104,7 @@ public class TelemetriaWearableController {
             @PathVariable(required = false) UUID idosoId,
             @Valid @RequestBody TelemetriaWearableBatchRequestDTO batchRequest,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
-        List<TelemetriaWearableResponseDTO> response = wearableIntegrationService.processarTelemetriaLote(idosoId, batchRequest);
+        List<TelemetriaWearableResponseDTO> response = wearableIntegrationService.processarTelemetriaLote(usuarioAutenticado, idosoId, batchRequest);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -118,6 +120,7 @@ public class TelemetriaWearableController {
             ),
             @ApiResponse(responseCode = "400", description = "Frequência cardíaca fora da faixa plausível."),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @PostMapping({"/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca", "/telemetria-wearable/frequencia-cardiaca"})
@@ -126,7 +129,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody FrequenciaCardiacaRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarFrequenciaCardiaca(finalId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarFrequenciaCardiaca(usuarioAutenticado, finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -142,6 +145,7 @@ public class TelemetriaWearableController {
             ),
             @ApiResponse(responseCode = "400", description = "Dados de passos inválidos."),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @PostMapping({"/idosos/{idosoId}/telemetria-wearable/passos", "/telemetria-wearable/passos"})
@@ -150,7 +154,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody PassosRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarPassos(finalId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarPassos(usuarioAutenticado, finalId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -166,6 +170,7 @@ public class TelemetriaWearableController {
             ),
             @ApiResponse(responseCode = "400", description = "Dados da detecção de queda inválidos."),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @PostMapping({"/idosos/{idosoId}/telemetria-wearable/deteccao-queda", "/telemetria-wearable/deteccao-queda"})
@@ -174,7 +179,7 @@ public class TelemetriaWearableController {
             @Valid @RequestBody DeteccaoQuedaRequestDTO request,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         UUID finalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarDeteccaoQueda(finalId, request);
+        TelemetriaWearableResponseDTO response = wearableIntegrationService.processarDeteccaoQueda(usuarioAutenticado, finalId, request);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
@@ -189,6 +194,7 @@ public class TelemetriaWearableController {
                     content = @Content(mediaType = "application/json", array = @ArraySchema(schema = @Schema(implementation = TelemetriaWearableResponseDTO.class)))
             ),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @GetMapping("/idosos/{idosoId}/telemetria-wearable/ultimas")
@@ -196,7 +202,7 @@ public class TelemetriaWearableController {
             @PathVariable UUID idosoId,
             @RequestParam(defaultValue = "30") int limite,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
-        List<TelemetriaWearableResponseDTO> leituras = wearableIntegrationService.buscarUltimasTelemetrias(idosoId, limite);
+        List<TelemetriaWearableResponseDTO> leituras = wearableIntegrationService.buscarUltimasTelemetrias(usuarioAutenticado, idosoId, limite);
         return ResponseEntity.ok(leituras);
     }
 
@@ -211,13 +217,14 @@ public class TelemetriaWearableController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = TelemetriaWearableResponseDTO.class))
             ),
             @ApiResponse(responseCode = "401", description = "Token JWT ausente, inválido ou expirado."),
+            @ApiResponse(responseCode = "403", description = "Acesso proibido: o usuário não pertence à rede de proteção, não acompanha o idoso nem é o aparelho pareado dele."),
             @ApiResponse(responseCode = "404", description = "Idoso não encontrado.")
     })
     @GetMapping("/idosos/{idosoId}/telemetria-wearable/recente")
     public ResponseEntity<TelemetriaWearableResponseDTO> buscarUltimaLeitura(
             @PathVariable UUID idosoId,
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
-        TelemetriaWearableResponseDTO ultima = wearableIntegrationService.buscarUltimaLeitura(idosoId);
+        TelemetriaWearableResponseDTO ultima = wearableIntegrationService.buscarUltimaLeitura(usuarioAutenticado, idosoId);
         if (ultima == null) {
             return ResponseEntity.noContent().build();
         }

@@ -45,7 +45,7 @@ public class ComorbidadeController {
     @Operation(
             summary = "Adiciona comorbidades ao perfil do idoso (HU15)",
             description = "Adiciona uma ou mais comorbidades à lista JSONB existente da entidade Idoso. " +
-                    "Apenas usuários com perfil autorizado (Familiar ou Médico) podem realizar a alteração. " +
+                    "Apenas quem está na rede de proteção do idoso (Familiar com vínculo) ou o médico que o acompanha pode realizar a alteração. " +
                     "Comorbidades duplicadas são desconsideradas automaticamente."
     )
     @ApiResponses(value = {
@@ -64,7 +64,7 @@ public class ComorbidadeController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha este idoso."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -87,7 +87,7 @@ public class ComorbidadeController {
     @Operation(
             summary = "Remove uma comorbidade específica do perfil do idoso (HU15)",
             description = "Remove uma comorbidade específica da lista JSONB existente da entidade Idoso. " +
-                    "Apenas usuários com perfil autorizado (Familiar ou Médico) podem realizar a alteração."
+                    "Apenas quem está na rede de proteção do idoso (Familiar com vínculo) ou o médico que o acompanha pode realizar a alteração."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -104,7 +104,7 @@ public class ComorbidadeController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha este idoso."
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -123,7 +123,7 @@ public class ComorbidadeController {
     @Operation(
             summary = "Lista as comorbidades do perfil do idoso",
             description = "Recupera a lista atual de comorbidades cadastradas no perfil do idoso. " +
-                    "Apenas perfis autorizados (Familiar ou Médico) possuem acesso."
+                    "Têm acesso a rede de proteção do idoso, o médico que o acompanha e o próprio idoso pelo aparelho pareado."
     )
     @ApiResponses(value = {
             @ApiResponse(
@@ -137,7 +137,7 @@ public class ComorbidadeController {
             ),
             @ApiResponse(
                     responseCode = "403",
-                    description = "Acesso proibido: usuário logado não possui perfil de Familiar ou Médico."
+                    description = "Acesso proibido: o usuário não pertence à rede de proteção nem acompanha este idoso."
             ),
             @ApiResponse(
                     responseCode = "404",

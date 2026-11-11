@@ -19,28 +19,33 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.seniorinsight.backendcore.domain.ConviteRede;
 import com.seniorinsight.backendcore.domain.Familiar;
 import com.seniorinsight.backendcore.domain.Idoso;
+import com.seniorinsight.backendcore.domain.Medico;
 import com.seniorinsight.backendcore.domain.StatusConvite;
 import com.seniorinsight.backendcore.domain.VinculoRede;
 import com.seniorinsight.backendcore.dto.AceiteConviteResponseDTO;
+import com.seniorinsight.backendcore.dto.ConvitePublicoDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeRequestDTO;
 import com.seniorinsight.backendcore.dto.ConviteRedeResponseDTO;
 import com.seniorinsight.backendcore.dto.MembroRedeResponseDTO;
 import com.seniorinsight.backendcore.exception.ConviteExpiradoException;
 import com.seniorinsight.backendcore.exception.ConviteInvalidoException;
+import com.seniorinsight.backendcore.exception.ConviteJaAceitoException;
+import com.seniorinsight.backendcore.exception.ConviteNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.exception.VinculoJaExistenteException;
 import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 import com.seniorinsight.backendcore.repository.ConviteRedeRepository;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.MedicoRepository;
 import com.seniorinsight.backendcore.repository.VinculoRedeRepository;
 
@@ -54,7 +59,7 @@ class RedeProtecaoServiceTest {
     private VinculoRedeRepository vinculoRedeRepository;
 
     @Mock
-    private IdosoRepository idosoRepository;
+    private AcessoIdosoService acessoIdosoService;
 
     @Mock
     private FamiliarRepository familiarRepository;
@@ -105,10 +110,7 @@ class RedeProtecaoServiceTest {
     void deveGerarConviteComSucesso() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", "Olá!");
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
-        when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(conviteRedeRepository.findByIdosoIdAndEmailAndStatus(idosoId, "neta@seniorinsight.com", StatusConvite.PENDENTE))
                 .thenReturn(Optional.empty());
 
@@ -143,7 +145,7 @@ class RedeProtecaoServiceTest {
     void deveLancarIdosoNaoEncontradoAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.empty());
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
                 .isInstanceOf(IdosoNaoEncontradoException.class);
@@ -154,10 +156,7 @@ class RedeProtecaoServiceTest {
     void deveLancarVinculoJaExistenteAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
-        when(vinculoRedeRepository.findByIdosoId(idosoId)).thenReturn(Collections.emptyList());
-        when(idosoRepository.findById(idosoId)).thenReturn(Optional.of(idoso));
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(familiarRepository.findByEmailIgnoreCase("neta@seniorinsight.com")).thenReturn(Optional.of(familiarConvidado));
         when(vinculoRedeRepository.existsByFamiliarAndIdoso(familiarConvidado, idoso)).thenReturn(true);
 
@@ -260,17 +259,179 @@ class RedeProtecaoServiceTest {
                 .restricoesAcesso(new HashMap<>())
                 .build();
 
-        when(familiarRepository.existsByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(true);
-        when(idosoRepository.existsById(idosoId)).thenReturn(true);
         when(vinculoRedeRepository.findByIdosoIdWithFamiliar(idosoId)).thenReturn(List.of(vinculo));
 
         List<MembroRedeResponseDTO> membros = redeProtecaoService.listarMembrosRede(idosoId, usuarioFamiliar);
 
         assertThat(membros).hasSize(1);
         MembroRedeResponseDTO dto = membros.get(0);
+        assertThat(dto.usuarioId()).isEqualTo(usuarioFamiliar.keycloakSub());
         assertThat(dto.nomeCompleto()).isEqualTo("Carlos Silva");
         assertThat(dto.email()).isEqualTo("filho@seniorinsight.com");
         assertThat(dto.grauParentesco()).isEqualTo("Filho");
         assertThat(dto.papelAcesso()).isEqualTo("CUIDADOR_PRINCIPAL");
+    }
+
+    // =========================================================================
+    // Autorização por idoso (sem vínculo com o idoso)
+    // =========================================================================
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, gerar convite é negado: nada é gravado e nenhum e-mail é simulado")
+    void semVinculoNaoGeraConvite() {
+        ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(conviteRedeRepository, never()).save(any());
+        verifyNoInteractions(simuladorEmailService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, listar a rede é negado e a rede não é consultada")
+    void semVinculoNaoListaRede() {
+        when(acessoIdosoService.exigirLeitura(usuarioFamiliar, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
+
+        assertThatThrownBy(() -> redeProtecaoService.listarMembrosRede(idosoId, usuarioFamiliar))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+
+        verify(vinculoRedeRepository, never()).findByIdosoIdWithFamiliar(any());
+    }
+
+    @Test
+    @DisplayName("Convite com papel Administrador é recusado (RN-012), em qualquer caixa, e nada é gravado")
+    void conviteNaoConcedeAdministrador() {
+        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+
+        for (String papel : List.of("ADMINISTRADOR", "administrador", " Administrador ")) {
+            ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", papel, "Neta", null);
+            assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Administrador");
+        }
+
+        verify(conviteRedeRepository, never()).save(any());
+        verifyNoInteractions(simuladorEmailService);
+    }
+
+    @Test
+    @DisplayName("Convite antigo com papel Administrador não vira vínculo ao ser aceito")
+    void aceiteDeConviteAntigoDeAdministradorEhRecusado() {
+        ConviteRede convite = ConviteRede.builder().idoso(idoso).email("neta@seniorinsight.com")
+                .token("tok").papelAcessoSugerido("ADMINISTRADOR").status(StatusConvite.PENDENTE)
+                .dataExpiracao(Instant.now().plusSeconds(3600)).build();
+        when(familiarRepository.findByKeycloakSub(usuarioConvidado.keycloakSub())).thenReturn(Optional.of(familiarConvidado));
+        when(conviteRedeRepository.findByTokenWithIdoso("tok")).thenReturn(Optional.of(convite));
+
+        assertThatThrownBy(() -> redeProtecaoService.aceitarConvite("tok", usuarioConvidado))
+                .isInstanceOf(ConviteInvalidoException.class);
+
+        verify(vinculoRedeRepository, never()).save(any());
+    }
+
+    // =========================================================================
+    // Consulta do convite pelo token (GET /convites?token=)
+    // =========================================================================
+
+    private ConviteRede conviteDe(StatusConvite status, Instant expiraEm) {
+        return ConviteRede.builder().idoso(idoso).email("neta@seniorinsight.com").token("tok")
+                .papelAcessoSugerido("CUIDADOR").grauParentescoSugerido("Neta").status(status)
+                .dataExpiracao(expiraEm).criadoPorSub(usuarioFamiliar.keycloakSub()).build();
+    }
+
+    @Test
+    @DisplayName("Consulta devolve só os campos públicos, com o nome do convidante e o primeiro nome do idoso")
+    void consultaDevolveConvitePublico() {
+        Instant expiraEm = Instant.now().plusSeconds(3600);
+        when(conviteRedeRepository.findByTokenWithIdoso("tok"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.PENDENTE, expiraEm)));
+        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(familiar));
+
+        ConvitePublicoDTO dto = redeProtecaoService.consultarConvite(" tok ", usuarioConvidado);
+
+        assertThat(dto.nomeConvidante()).isEqualTo("Carlos Silva");
+        assertThat(dto.primeiroNomeIdoso()).isEqualTo("Dona");
+        assertThat(dto.papelAcesso()).isEqualTo("CUIDADOR");
+        assertThat(dto.grauParentesco()).isEqualTo("Neta");
+        assertThat(dto.expiraEm()).isEqualTo(expiraEm);
+        assertThat(dto.status()).isEqualTo(StatusConvite.PENDENTE);
+        verify(conviteRedeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Consulta usa o nome do médico quando quem convidou é médico")
+    void consultaUsaNomeDoMedico() {
+        Medico medico = new Medico();
+        medico.setNomeCompleto("Dra. Helena Souza");
+        when(conviteRedeRepository.findByTokenWithIdoso("tok"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.PENDENTE, Instant.now().plusSeconds(3600))));
+        when(familiarRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.empty());
+        when(medicoRepository.findByKeycloakSub(usuarioFamiliar.keycloakSub())).thenReturn(Optional.of(medico));
+
+        assertThat(redeProtecaoService.consultarConvite("tok", usuarioConvidado).nomeConvidante())
+                .isEqualTo("Dra. Helena Souza");
+    }
+
+    @Test
+    @DisplayName("Consulta usa o texto padrão quando o convidante não é encontrado")
+    void consultaUsaNomePadraoSemConvidante() {
+        ConviteRede convite = conviteDe(StatusConvite.PENDENTE, Instant.now().plusSeconds(3600));
+        convite.setCriadoPorSub(null);
+        when(conviteRedeRepository.findByTokenWithIdoso("tok")).thenReturn(Optional.of(convite));
+
+        assertThat(redeProtecaoService.consultarConvite("tok", usuarioConvidado).nomeConvidante())
+                .isEqualTo("Um familiar do idoso");
+    }
+
+    @Test
+    @DisplayName("Consulta com token inexistente lança ConviteNaoEncontradoException")
+    void consultaInexistente() {
+        when(conviteRedeRepository.findByTokenWithIdoso("tok")).thenReturn(Optional.empty());
+        when(conviteRedeRepository.findByToken("tok")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> redeProtecaoService.consultarConvite("tok", usuarioConvidado))
+                .isInstanceOf(ConviteNaoEncontradoException.class);
+    }
+
+    @Test
+    @DisplayName("Consulta de convite aceito lança ConviteJaAceitoException")
+    void consultaJaAceito() {
+        when(conviteRedeRepository.findByTokenWithIdoso("tok"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.ACEITO, Instant.now().plusSeconds(3600))));
+
+        assertThatThrownBy(() -> redeProtecaoService.consultarConvite("tok", usuarioConvidado))
+                .isInstanceOf(ConviteJaAceitoException.class);
+    }
+
+    @Test
+    @DisplayName("Consulta de convite expirado ou cancelado lança ConviteExpiradoException e não altera o convite")
+    void consultaExpiradoOuCancelado() {
+        when(conviteRedeRepository.findByTokenWithIdoso("expirado"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.PENDENTE, Instant.now().minusSeconds(60))));
+        when(conviteRedeRepository.findByTokenWithIdoso("cancelado"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.CANCELADO, Instant.now().plusSeconds(3600))));
+
+        assertThatThrownBy(() -> redeProtecaoService.consultarConvite("expirado", usuarioConvidado))
+                .isInstanceOf(ConviteExpiradoException.class).hasMessage("Convite expirado");
+        assertThatThrownBy(() -> redeProtecaoService.consultarConvite("cancelado", usuarioConvidado))
+                .isInstanceOf(ConviteExpiradoException.class).hasMessage("Convite cancelado");
+
+        verify(conviteRedeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Consulta não exige perfil de Familiar nem vínculo com o idoso")
+    void consultaNaoExigeVinculo() {
+        when(conviteRedeRepository.findByTokenWithIdoso("tok"))
+                .thenReturn(Optional.of(conviteDe(StatusConvite.PENDENTE, Instant.now().plusSeconds(3600))));
+
+        redeProtecaoService.consultarConvite("tok", usuarioConvidado);
+
+        verifyNoInteractions(acessoIdosoService);
+        verify(familiarRepository, never()).findByKeycloakSub(usuarioConvidado.keycloakSub());
     }
 }

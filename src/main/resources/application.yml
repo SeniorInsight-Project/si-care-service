@@ -11,6 +11,23 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME}
+    password: ${RABBITMQ_PASSWORD}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-confirm-type: correlated
+    listener:
+      simple:
+        # Falhou depois das tentativas: não volta para a fila, vai para a care.dlq.
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+
   data:
     redis:
       repositories:
@@ -41,6 +58,12 @@ management:
   endpoint:
     health:
       show-details: never
+  health:
+    rabbit:
+      # O healthcheck do Swarm chama /actuator/health. Com o RabbitMQ no health, uma queda do broker deixaria o
+      # care-service DOWN e o Swarm o reiniciaria em loop, derrubando SOS e telemetria. A outbox já tolera o broker
+      # fora do ar (o evento fica pendente), então ele não entra no health.
+      enabled: false
 
 # Configuração do Swagger OpenAPI
 springdoc:
@@ -50,7 +73,18 @@ springdoc:
     path: /swagger-ui.html
     operationsSorter: method
 
+care:
+  outbox:
+    relay:
+      intervalo: PT1S
+      tamanho-lote: 100
+      timeout-confirmacao: PT5S
+
 seniorinsight:
+  idoso:
+    dominio-email: ${KEYCLOAK_DOMINIO_EMAIL_IDOSO:idoso.seniorinsight.invalid}
+  consentimento:
+    versao-termo: ${CONSENTIMENTO_VERSAO_TERMO:v1}
   integrations:
     llm:
       openai:

@@ -13,11 +13,18 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * @param email       claim {@code email} (pode ser nula)
  * @param nome        claim {@code name} (pode ser nula)
  * @param papeis      roles do realm ({@code realm_access.roles}), sem o prefixo {@code ROLE_}
+ * @param usernamePreferido claim {@code preferred_username} (pode ser nula)
+ * @param emailVerificado   claim {@code email_verified}
  */
-public record UsuarioAutenticado(String keycloakSub, String email, String nome, List<String> papeis) {
+public record UsuarioAutenticado(String keycloakSub, String email, String nome, List<String> papeis,
+                                 String usernamePreferido, boolean emailVerificado) {
 
     public UsuarioAutenticado {
         papeis = papeis == null ? List.of() : List.copyOf(papeis);
+    }
+
+    public UsuarioAutenticado(String keycloakSub, String email, String nome, List<String> papeis) {
+        this(keycloakSub, email, nome, papeis, null, false);
     }
 
     public static UsuarioAutenticado de(Jwt jwt) {
@@ -25,7 +32,9 @@ public record UsuarioAutenticado(String keycloakSub, String email, String nome, 
                 jwt.getSubject(),
                 jwt.getClaimAsString("email"),
                 jwt.getClaimAsString("name"),
-                papeisDoRealm(jwt));
+                papeisDoRealm(jwt),
+                jwt.getClaimAsString("preferred_username"),
+                Boolean.TRUE.equals(jwt.getClaimAsBoolean("email_verified")));
     }
 
     public boolean temPapel(String papel) {

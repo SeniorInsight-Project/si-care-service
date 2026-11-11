@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -20,6 +21,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -36,6 +38,8 @@ import com.seniorinsight.backendcore.dto.StepsDataDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
+import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
+import com.seniorinsight.backendcore.exception.PerfilNaoAutorizadoException;
 import com.seniorinsight.backendcore.service.WearableIntegrationService;
 
 @WebMvcTest(controllers = TelemetriaWearableController.class)
@@ -80,7 +84,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "PROCESSADO_COM_SUCESSO"
         );
 
-        when(wearableIntegrationService.processarTelemetria(eq(idosoId), any(TelemetriaWearableRequestDTO.class)))
+        when(wearableIntegrationService.processarTelemetria(any(), eq(idosoId), any(TelemetriaWearableRequestDTO.class)))
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId)
@@ -110,7 +114,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "ALERTA_QUEDA_DISPARADO"
         );
 
-        when(wearableIntegrationService.processarTelemetria(eq(idosoId), any(TelemetriaWearableRequestDTO.class)))
+        when(wearableIntegrationService.processarTelemetria(any(), eq(idosoId), any(TelemetriaWearableRequestDTO.class)))
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable", idosoId)
@@ -137,7 +141,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "PROCESSADO_COM_SUCESSO"
         );
 
-        when(wearableIntegrationService.processarTelemetriaLote(eq(idosoId), any(TelemetriaWearableBatchRequestDTO.class)))
+        when(wearableIntegrationService.processarTelemetriaLote(any(), eq(idosoId), any(TelemetriaWearableBatchRequestDTO.class)))
                 .thenReturn(List.of(responseDTO));
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/lote", idosoId)
@@ -162,7 +166,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "PROCESSADO_COM_SUCESSO"
         );
 
-        when(wearableIntegrationService.processarFrequenciaCardiaca(eq(idosoId), any(FrequenciaCardiacaRequestDTO.class)))
+        when(wearableIntegrationService.processarFrequenciaCardiaca(any(), eq(idosoId), any(FrequenciaCardiacaRequestDTO.class)))
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca", idosoId)
@@ -186,7 +190,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "PROCESSADO_COM_SUCESSO"
         );
 
-        when(wearableIntegrationService.processarPassos(eq(idosoId), any(PassosRequestDTO.class)))
+        when(wearableIntegrationService.processarPassos(any(), eq(idosoId), any(PassosRequestDTO.class)))
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/passos", idosoId)
@@ -210,7 +214,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "ALERTA_QUEDA_DISPARADO"
         );
 
-        when(wearableIntegrationService.processarDeteccaoQueda(eq(idosoId), any(DeteccaoQuedaRequestDTO.class)))
+        when(wearableIntegrationService.processarDeteccaoQueda(any(), eq(idosoId), any(DeteccaoQuedaRequestDTO.class)))
                 .thenReturn(responseDTO);
 
         mockMvc.perform(post("/api/v1/idosos/{idosoId}/telemetria-wearable/deteccao-queda", idosoId)
@@ -231,7 +235,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "HISTORICO"
         );
 
-        when(wearableIntegrationService.buscarUltimasTelemetrias(idosoId, 30))
+        when(wearableIntegrationService.buscarUltimasTelemetrias(any(), eq(idosoId), eq(30)))
                 .thenReturn(List.of(r1));
 
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/ultimas", idosoId)
@@ -250,7 +254,7 @@ class TelemetriaWearableControllerTest {
                 Instant.now(), Instant.now(), "RECENTE"
         );
 
-        when(wearableIntegrationService.buscarUltimaLeitura(idosoId))
+        when(wearableIntegrationService.buscarUltimaLeitura(any(), eq(idosoId)))
                 .thenReturn(r1);
 
         mockMvc.perform(get("/api/v1/idosos/{idosoId}/telemetria-wearable/recente", idosoId)
@@ -282,6 +286,80 @@ class TelemetriaWearableControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(invalidRequest)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // =========================================================================
+    // Autorização por idoso: sem token (401) e sem vínculo (403) em todas as rotas
+    // =========================================================================
+
+    /** Método, rota e corpo de cada rota de telemetria, incluindo as que levam o idoso no corpo em vez da rota. */
+    private static final String[][] ROTAS = {
+            {"POST", "/api/v1/idosos/{idosoId}/telemetria-wearable"},
+            {"POST", "/api/v1/telemetria-wearable/ingestao"},
+            {"POST", "/api/v1/idosos/{idosoId}/telemetria-wearable/lote"},
+            {"POST", "/api/v1/telemetria-wearable/lote"},
+            {"POST", "/api/v1/idosos/{idosoId}/telemetria-wearable/frequencia-cardiaca"},
+            {"POST", "/api/v1/telemetria-wearable/frequencia-cardiaca"},
+            {"POST", "/api/v1/idosos/{idosoId}/telemetria-wearable/passos"},
+            {"POST", "/api/v1/telemetria-wearable/passos"},
+            {"POST", "/api/v1/idosos/{idosoId}/telemetria-wearable/deteccao-queda"},
+            {"POST", "/api/v1/telemetria-wearable/deteccao-queda"},
+            {"GET", "/api/v1/idosos/{idosoId}/telemetria-wearable/ultimas"},
+            {"GET", "/api/v1/idosos/{idosoId}/telemetria-wearable/recente"},
+    };
+
+    private MockHttpServletRequestBuilder rota(String[] r, UUID id, String corpo) {
+        MockHttpServletRequestBuilder b = "GET".equals(r[0]) ? get(r[1], id) : post(r[1], id);
+        return "GET".equals(r[0]) ? b : b.contentType(MediaType.APPLICATION_JSON).content(corpo);
+    }
+
+    private String corpoDaRota(String caminho) throws Exception {
+        UUID dono = idosoId;
+        if (caminho.endsWith("/lote")) {
+            return "{\"readings\":[{\"idoso_id\":\"" + dono + "\",\"timestamp\":\"2026-11-10T10:00:00Z\"}]}";
+        }
+        if (caminho.endsWith("/frequencia-cardiaca")) {
+            return "{\"idoso_id\":\"" + dono + "\",\"bpm\":72}";
+        }
+        if (caminho.endsWith("/passos")) {
+            return "{\"idoso_id\":\"" + dono + "\",\"count\":100}";
+        }
+        if (caminho.endsWith("/deteccao-queda")) {
+            return "{\"idoso_id\":\"" + dono + "\",\"fall_detected\":false}";
+        }
+        return "{\"idoso_id\":\"" + dono + "\",\"timestamp\":\"2026-11-10T10:00:00Z\"}";
+    }
+
+    @Test
+    @DisplayName("Todas as rotas de telemetria respondem 401 sem token e não chegam ao serviço")
+    void todasAsRotasRetornam401SemToken() throws Exception {
+        for (String[] r : ROTAS) {
+            mockMvc.perform(rota(r, idosoId, corpoDaRota(r[1])))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        verifyNoInteractions(wearableIntegrationService);
+    }
+
+    @Test
+    @DisplayName("Sem vínculo com o idoso, todas as rotas de telemetria respondem 404 com o Erro do contrato")
+    void todasAsRotasRetornam403SemVinculo() throws Exception {
+        IdosoNaoEncontradoException foraDaRede = new IdosoNaoEncontradoException(idosoId);
+        when(wearableIntegrationService.processarTelemetria(any(), any(), any())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.processarTelemetriaLote(any(), any(), any())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.processarFrequenciaCardiaca(any(), any(), any())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.processarPassos(any(), any(), any())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.processarDeteccaoQueda(any(), any(), any())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.buscarUltimasTelemetrias(any(), any(), org.mockito.ArgumentMatchers.anyInt())).thenThrow(foraDaRede);
+        when(wearableIntegrationService.buscarUltimaLeitura(any(), any())).thenThrow(foraDaRede);
+
+        for (String[] r : ROTAS) {
+            mockMvc.perform(rota(r, idosoId, corpoDaRota(r[1])).with(tokenFamiliar()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status").value(404))
+                    .andExpect(jsonPath("$.error").value("Idoso Não Encontrado"))
+                    .andExpect(jsonPath("$.message").value("Idoso não encontrado com o identificador: " + idosoId));
+        }
     }
 
     private static JwtRequestPostProcessor tokenFamiliar() {

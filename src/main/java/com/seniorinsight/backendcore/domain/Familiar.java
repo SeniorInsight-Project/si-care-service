@@ -42,7 +42,8 @@ public class Familiar {
     @Column(length = 20)
     private String telefone;
 
-    @Column(nullable = false, unique = true, length = 14)
+    /** Opcional: o familiar criado a partir de user.created ainda não informou o CPF. */
+    @Column(unique = true, length = 14)
     private String cpf;
 
     @OneToMany(mappedBy = "familiar", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -34,10 +34,9 @@ import com.seniorinsight.backendcore.dto.TelemetriaWearableBatchRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableRequestDTO;
 import com.seniorinsight.backendcore.dto.TelemetriaWearableResponseDTO;
 import com.seniorinsight.backendcore.event.SosAcionadoEvent;
-import com.seniorinsight.backendcore.exception.IdosoNaoEncontradoException;
 import com.seniorinsight.backendcore.repository.AlarmeEmergenciaRepository;
-import com.seniorinsight.backendcore.repository.IdosoRepository;
 import com.seniorinsight.backendcore.repository.TelemetriaWearableRepository;
+import com.seniorinsight.backendcore.security.UsuarioAutenticado;
 
 /**
  * Serviço de integração e ingestão de telemetria de dispositivos wearable (smartwatches).
@@ -51,7 +50,7 @@ public class WearableIntegrationService {
     private static final Logger log = LoggerFactory.getLogger(WearableIntegrationService.class);
 
     private final TelemetriaWearableRepository telemetriaRepository;
-    private final IdosoRepository idosoRepository;
+    private final AcessoIdosoService acessoIdosoService;
     private final AlarmeEmergenciaRepository alarmeEmergenciaRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final RestTemplate restTemplate;
@@ -67,12 +66,12 @@ public class WearableIntegrationService {
 
     public WearableIntegrationService(
             TelemetriaWearableRepository telemetriaRepository,
-            IdosoRepository idosoRepository,
+            AcessoIdosoService acessoIdosoService,
             AlarmeEmergenciaRepository alarmeEmergenciaRepository,
             ApplicationEventPublisher eventPublisher,
             RestTemplate openWearablesRestTemplate) {
         this.telemetriaRepository = telemetriaRepository;
-        this.idosoRepository = idosoRepository;
+        this.acessoIdosoService = acessoIdosoService;
         this.alarmeEmergenciaRepository = alarmeEmergenciaRepository;
         this.eventPublisher = eventPublisher;
         this.restTemplate = openWearablesRestTemplate;
@@ -80,15 +79,19 @@ public class WearableIntegrationService {
 
     /**
      * Processa e persiste uma leitura consolidada de telemetria enviada pelo aplicativo móvel.
+     *
+     * @param usuario quem envia: o aparelho pareado do idoso, alguém da rede ou o médico dele
      */
     @Transactional
-    public TelemetriaWearableResponseDTO processarTelemetria(UUID idosoId, TelemetriaWearableRequestDTO request) {
+    public TelemetriaWearableResponseDTO processarTelemetria(UsuarioAutenticado usuario, UUID idosoId,
+            TelemetriaWearableRequestDTO request) {
         UUID idosoFinalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        if (idosoFinalId == null) {
-            throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
-        }
+        Idoso idoso = autorizar(usuario, idosoFinalId);
+        return registrarTelemetria(idoso, request);
+    }
 
-        Idoso idoso = buscarIdoso(idosoFinalId);
+    private TelemetriaWearableResponseDTO registrarTelemetria(Idoso idoso, TelemetriaWearableRequestDTO request) {
+        UUID idosoFinalId = idoso.getId();
 
         Integer bpm = request != null && request.heartRate() != null ? request.heartRate().bpm() : null;
         Integer restingBpm = request != null && request.heartRate() != null ? request.heartRate().restingBpm() : null;
@@ -151,13 +154,24 @@ public class WearableIntegrationService {
      * Ingestão em lote de telemetrias acumuladas (modo offline do React Native).
      */
     @Transactional
-    public List<TelemetriaWearableResponseDTO> processarTelemetriaLote(UUID idosoId, TelemetriaWearableBatchRequestDTO batchRequest) {
+    public List<TelemetriaWearableResponseDTO> processarTelemetriaLote(UsuarioAutenticado usuario, UUID idosoId,
+            TelemetriaWearableBatchRequestDTO batchRequest) {
         if (batchRequest == null || batchRequest.readings() == null || batchRequest.readings().isEmpty()) {
             throw new IllegalArgumentException("O lote de telemetrias não contém leituras.");
         }
 
+        // Sem idoso na rota, cada leitura traz o seu: o vínculo é checado para todos antes de gravar qualquer uma
+        Map<UUID, Idoso> autorizados = new HashMap<>();
+        for (TelemetriaWearableRequestDTO reading : batchRequest.readings()) {
+            UUID idosoFinalId = idosoId != null ? idosoId : (reading != null ? reading.idosoId() : null);
+            if (idosoFinalId == null || !autorizados.containsKey(idosoFinalId)) {
+                autorizados.put(idosoFinalId, autorizar(usuario, idosoFinalId));
+            }
+        }
+
         return batchRequest.readings().stream()
-                .map(reading -> processarTelemetria(idosoId, reading))
+                .map(reading -> registrarTelemetria(
+                        autorizados.get(idosoId != null ? idosoId : reading.idosoId()), reading))
                 .toList();
     }
 
@@ -165,13 +179,9 @@ public class WearableIntegrationService {
      * Ingestão granular para frequência cardíaca em tempo real.
      */
     @Transactional
-    public TelemetriaWearableResponseDTO processarFrequenciaCardiaca(UUID idosoId, FrequenciaCardiacaRequestDTO request) {
+    public TelemetriaWearableResponseDTO processarFrequenciaCardiaca(UsuarioAutenticado usuario, UUID idosoId, FrequenciaCardiacaRequestDTO request) {
         UUID idosoFinalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        if (idosoFinalId == null) {
-            throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
-        }
-
-        Idoso idoso = buscarIdoso(idosoFinalId);
+        Idoso idoso = autorizar(usuario, idosoFinalId);
 
         Instant coletadoEm = (request != null && request.timestamp() != null) ? request.timestamp() : Instant.now();
 
@@ -198,13 +208,9 @@ public class WearableIntegrationService {
      * Ingestão granular para passos e locomoção.
      */
     @Transactional
-    public TelemetriaWearableResponseDTO processarPassos(UUID idosoId, PassosRequestDTO request) {
+    public TelemetriaWearableResponseDTO processarPassos(UsuarioAutenticado usuario, UUID idosoId, PassosRequestDTO request) {
         UUID idosoFinalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        if (idosoFinalId == null) {
-            throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
-        }
-
-        Idoso idoso = buscarIdoso(idosoFinalId);
+        Idoso idoso = autorizar(usuario, idosoFinalId);
 
         Instant coletadoEm = (request != null && request.timestamp() != null) ? request.timestamp() : Instant.now();
 
@@ -231,13 +237,9 @@ public class WearableIntegrationService {
      * Ingestão crítica para alerta de queda detectada pelo smartwatch.
      */
     @Transactional
-    public TelemetriaWearableResponseDTO processarDeteccaoQueda(UUID idosoId, DeteccaoQuedaRequestDTO request) {
+    public TelemetriaWearableResponseDTO processarDeteccaoQueda(UsuarioAutenticado usuario, UUID idosoId, DeteccaoQuedaRequestDTO request) {
         UUID idosoFinalId = idosoId != null ? idosoId : (request != null ? request.idosoId() : null);
-        if (idosoFinalId == null) {
-            throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
-        }
-
-        Idoso idoso = buscarIdoso(idosoFinalId);
+        Idoso idoso = autorizar(usuario, idosoFinalId);
 
         boolean quedaConfirmada = request != null && Boolean.TRUE.equals(request.fallDetected());
         Instant coletadoEm = (request != null && request.timestamp() != null) ? request.timestamp() : Instant.now();
@@ -282,8 +284,8 @@ public class WearableIntegrationService {
      * Consulta as leituras mais recentes para renderização dos gráficos no app.
      */
     @Transactional(readOnly = true)
-    public List<TelemetriaWearableResponseDTO> buscarUltimasTelemetrias(UUID idosoId, int limite) {
-        buscarIdoso(idosoId);
+    public List<TelemetriaWearableResponseDTO> buscarUltimasTelemetrias(UsuarioAutenticado usuario, UUID idosoId, int limite) {
+        autorizar(usuario, idosoId);
         int max = Math.max(1, Math.min(limite, 500));
         return telemetriaRepository.findByIdosoIdOrderByColetadoEmDesc(idosoId, PageRequest.of(0, max))
                 .stream()
@@ -295,8 +297,8 @@ public class WearableIntegrationService {
      * Obtém a leitura mais recente de um idoso.
      */
     @Transactional(readOnly = true)
-    public TelemetriaWearableResponseDTO buscarUltimaLeitura(UUID idosoId) {
-        buscarIdoso(idosoId);
+    public TelemetriaWearableResponseDTO buscarUltimaLeitura(UsuarioAutenticado usuario, UUID idosoId) {
+        autorizar(usuario, idosoId);
         return telemetriaRepository.findTopByIdosoIdOrderByColetadoEmDesc(idosoId)
                 .map(t -> TelemetriaWearableResponseDTO.fromEntity(t, "RECENTE"))
                 .orElse(null);
@@ -407,12 +409,15 @@ public class WearableIntegrationService {
         }
     }
 
-    private Idoso buscarIdoso(UUID idosoId) {
-        return idosoRepository.findById(idosoId)
-                .orElseThrow(() -> {
-                    log.warn("[WEARABLE] Idoso não encontrado: {}", idosoId);
-                    return new IdosoNaoEncontradoException(idosoId);
-                });
+    /**
+     * Idoso a quem a telemetria pertence, depois de checar o vínculo de quem envia ou consulta: o aparelho pareado do
+     * próprio idoso, alguém da rede dele ou o médico que o acompanha (403 sem vínculo, 404 se o idoso não existe).
+     */
+    private Idoso autorizar(UsuarioAutenticado usuario, UUID idosoId) {
+        if (idosoId == null) {
+            throw new IllegalArgumentException("O identificador do idoso não pode ser nulo.");
+        }
+        return acessoIdosoService.exigirLeitura(usuario, idosoId);
     }
 
     // Getters e setters para testes e inspeção
