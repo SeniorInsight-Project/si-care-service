@@ -291,7 +291,7 @@ public class RedeProtecaoService {
 
         return new ConvitePublicoDTO(
                 nomeDoConvidante(convite.getCriadoPorSub()),
-                primeiroNome(convite.getIdoso().getNomeCompleto()),
+                convite.getIdoso().primeiroNome(),
                 convite.getPapelAcessoSugerido(),
                 convite.getGrauParentescoSugerido(),
                 convite.getDataExpiracao(),
@@ -352,10 +352,6 @@ public class RedeProtecaoService {
                 .map(Familiar::getNomeCompleto)
                 .or(() -> medicoRepository.findByKeycloakSub(criadoPorSub).map(Medico::getNomeCompleto))
                 .orElse(NOME_CONVIDANTE_PADRAO);
-    }
-
-    private static String primeiroNome(String nomeCompleto) {
-        return nomeCompleto.trim().split("\\s+")[0];
     }
 
     private UsuarioAutenticado resolverUsuarioAutenticado(UsuarioAutenticado usuarioParam) {
