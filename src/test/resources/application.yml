@@ -35,6 +35,14 @@ spring:
           issuer-uri: http://localhost:8180/realms/seniorinsight
 
 care:
+  seguranca:
+    papel-servico: servico-interno
+  exclusao:
+    aviso-rede:
+      retencao: P7D
+      intervalo-limpeza: PT1H
+  mensageria:
+    eventos-consumidos: user.created,lgpd.erasure.requested
   outbox:
     relay:
       intervalo: PT1S

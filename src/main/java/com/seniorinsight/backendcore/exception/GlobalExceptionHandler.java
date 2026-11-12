@@ -69,6 +69,11 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, "Convite Inválido", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(AvisoExclusaoNaoEncontradoException.class)
+    public ResponseEntity<Map<String, Object>> handleAvisoExclusaoNaoEncontrado(AvisoExclusaoNaoEncontradoException ex, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "Aviso de Exclusão Não Encontrado", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(ConviteNaoEncontradoException.class)
     public ResponseEntity<Map<String, Object>> handleConviteNaoEncontrado(ConviteNaoEncontradoException ex, HttpServletRequest request) {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "Convite Não Encontrado", ex.getMessage(), request.getRequestURI());

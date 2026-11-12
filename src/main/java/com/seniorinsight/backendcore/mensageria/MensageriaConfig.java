@@ -11,6 +11,7 @@ import org.springframework.amqp.core.ExchangeBuilder;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.core.TopicExchange;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -20,7 +21,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  *
  * <p>{@code si.events} é a exchange topic compartilhada pelos serviços. A fila {@code care.q} recebe os eventos que o
  * care consome; a mensagem rejeitada (depois das tentativas) vai para {@code care.dlq} pela exchange
- * {@code si.events.dlx}.
+ * {@code si.events.dlx}. As routing keys da {@code care.q} vêm de {@code care.mensageria.eventos-consumidos}.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
@@ -30,9 +31,6 @@ public class MensageriaConfig {
     public static final String EXCHANGE_DLX = "si.events.dlx";
     public static final String FILA = "care.q";
     public static final String FILA_DLQ = "care.dlq";
-
-    /** Routing keys dos eventos de outros serviços que o care consome. */
-    static final String[] EVENTOS_CONSUMIDOS = {"user.created"};
 
     @Bean
     TopicExchange exchangeEventos() {
@@ -59,9 +57,10 @@ public class MensageriaConfig {
 
     @Bean
     Declarables bindings(TopicExchange exchangeEventos, DirectExchange exchangeDeadLetter, Queue filaCare,
-                         Queue filaCareDlq) {
+                         Queue filaCareDlq,
+                         @Value("${care.mensageria.eventos-consumidos}") List<String> eventosConsumidos) {
         List<Declarable> bindings = new ArrayList<>();
-        for (String routingKey : EVENTOS_CONSUMIDOS) {
+        for (String routingKey : eventosConsumidos) {
             bindings.add(BindingBuilder.bind(filaCare).to(exchangeEventos).with(routingKey));
         }
         bindings.add(BindingBuilder.bind(filaCareDlq).to(exchangeDeadLetter).with(FILA));
