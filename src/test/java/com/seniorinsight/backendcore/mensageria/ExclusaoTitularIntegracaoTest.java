@@ -2,6 +2,10 @@ package com.seniorinsight.backendcore.mensageria;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -14,7 +18,11 @@ import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +31,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
  * lgpd.erasure.requested de ponta a ponta, com PostgreSQL e RabbitMQ reais e as migrações do Flyway: o idoso e tudo
  * que depende dele somem, o familiar some e o idoso fica, o aviso à rede é gravado e a confirmação sai uma vez.
  */
+@AutoConfigureMockMvc
 class ExclusaoTitularIntegracaoTest extends IntegracaoBase {
 
     private static final Duration ESPERA = Duration.ofSeconds(20);
@@ -35,6 +44,9 @@ class ExclusaoTitularIntegracaoTest extends IntegracaoBase {
 
     @Autowired
     ObjectMapper objectMapper;
+
+    @Autowired
+    MockMvc mvc;
 
     @Test
     void exclusaoDoIdosoApagaTudoGravaOAvisoDaRedeEConfirmaUmaVez() throws Exception {
@@ -63,6 +75,29 @@ class ExclusaoTitularIntegracaoTest extends IntegracaoBase {
         assertThat(jdbc.queryForList("SELECT impressao FROM titular_excluido", String.class))
                 .contains(sha256("sub-do-idoso"), sha256(idoso.toString()))
                 .doesNotContain("sub-do-idoso", idoso.toString());
+    }
+
+    @Test
+    void endpointInternoDevolveARedePeloProtocoloSoParaOServico() throws Exception {
+        UUID idoso = idoso("Dona Sebastiana Lima");
+        vincular(familiar("sub-ana-rede", "Ana Lima", "ana@exemplo.com"), idoso, "ADMINISTRADOR");
+        UUID protocolo = UUID.randomUUID();
+        String url = "/internal/exclusoes/" + protocolo + "/rede";
+        mvc.perform(get(url).with(servico())).andExpect(status().isNotFound());
+
+        enviar(UUID.randomUUID(), protocolo, "IDOSO", idoso, "sub-do-idoso-rede");
+
+        aguardarConfirmacao(protocolo);
+        mvc.perform(get(url).with(servico()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.primeiroNomeIdoso").value("Dona"))
+                .andExpect(jsonPath("$.membros.length()").value(1))
+                .andExpect(jsonPath("$.membros[0].usuarioId").value("sub-ana-rede"))
+                .andExpect(jsonPath("$.membros[0].nomeCompleto").value("Ana Lima"))
+                .andExpect(jsonPath("$.membros[0].email").value("ana@exemplo.com"));
+        mvc.perform(get(url)).andExpect(status().isUnauthorized());
+        mvc.perform(get(url).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_familiar"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -171,6 +206,11 @@ class ExclusaoTitularIntegracaoTest extends IntegracaoBase {
         await().atMost(ESPERA).untilAsserted(() -> assertThat(naDlq(protocolo)).isTrue());
         assertThat(contar("SELECT count(*) FROM idosos WHERE id = ?", idoso)).isEqualTo(1);
         assertThat(confirmacoes(protocolo)).isEmpty();
+    }
+
+    private static RequestPostProcessor servico() {
+        return jwt().jwt(token -> token.subject("notification-service"))
+                .authorities(new SimpleGrantedAuthority("ROLE_servico-interno"));
     }
 
     private boolean naDlq(UUID protocolo) {

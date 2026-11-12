@@ -74,6 +74,14 @@ springdoc:
     operationsSorter: method
 
 care:
+  seguranca:
+    # Role de realm do Keycloak que as rotas /internal/** exigem (conta de serviço dos outros serviços).
+    papel-servico: ${CARE_PAPEL_SERVICO:servico-interno}
+  exclusao:
+    aviso-rede:
+      # A cópia do aviso à rede (nome e e-mail dos membros) fica disponível por este prazo.
+      retencao: P7D
+      intervalo-limpeza: PT1H
   mensageria:
     # Routing keys da care.q na exchange si.events.
     eventos-consumidos: user.created,lgpd.erasure.requested

@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -38,8 +39,13 @@ public class SecurityConfig {
             "/swagger-ui.html", "/swagger-ui/**"
     };
 
+    /** Rotas para outros serviços: só o token com a role de serviço, não o de um usuário. */
+    private static final String ROTAS_INTERNAS = "/internal/**";
+
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   @Value("${care.seguranca.papel-servico}") String papelServico)
+            throws Exception {
         AuthenticationEntryPoint naoAutorizado = (request, response, authException) -> {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType("application/json;charset=UTF-8");
@@ -63,6 +69,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(ROTAS_PUBLICAS).permitAll()
+                        .requestMatchers(ROTAS_INTERNAS).hasRole(papelServico)
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(rs -> rs
