@@ -35,6 +35,8 @@ spring:
           issuer-uri: http://localhost:8180/realms/seniorinsight
 
 care:
+  mensageria:
+    eventos-consumidos: user.created,lgpd.erasure.requested
   outbox:
     relay:
       intervalo: PT1S

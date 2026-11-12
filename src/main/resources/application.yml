@@ -74,6 +74,9 @@ springdoc:
     operationsSorter: method
 
 care:
+  mensageria:
+    # Routing keys da care.q na exchange si.events.
+    eventos-consumidos: user.created,lgpd.erasure.requested
   outbox:
     relay:
       intervalo: PT1S
