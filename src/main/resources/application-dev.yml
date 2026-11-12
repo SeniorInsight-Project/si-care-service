@@ -21,12 +21,6 @@ spring:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
 
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-
-
 # Simulações de e-mail e de SOS com o conteúdo completo (dados pessoais): só no perfil dev.
 logging:
   level:
