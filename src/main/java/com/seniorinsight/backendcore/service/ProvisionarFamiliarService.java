@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.seniorinsight.backendcore.domain.Familiar;
 import com.seniorinsight.backendcore.repository.FamiliarRepository;
+import com.seniorinsight.backendcore.repository.TitularExcluidoRepository;
 
 /** Cria o Familiar do care-service a partir do perfil criado no identity-service (evento user.created). */
 @Service
@@ -15,19 +16,27 @@ public class ProvisionarFamiliarService {
     private static final Logger log = LoggerFactory.getLogger(ProvisionarFamiliarService.class);
 
     private final FamiliarRepository familiarRepository;
+    private final TitularExcluidoRepository titularExcluidoRepository;
 
-    public ProvisionarFamiliarService(FamiliarRepository familiarRepository) {
+    public ProvisionarFamiliarService(FamiliarRepository familiarRepository,
+                                      TitularExcluidoRepository titularExcluidoRepository) {
         this.familiarRepository = familiarRepository;
+        this.titularExcluidoRepository = titularExcluidoRepository;
     }
 
     /**
      * Cria o Familiar ligado ao {@code keycloakSub}, sem CPF. Se já existe um para esse sub (cadastro anterior ao
-     * evento ou outro evento do mesmo perfil), não faz nada.
+     * evento ou outro evento do mesmo perfil), ou se o titular já pediu a exclusão dos dados (HU-022), não faz nada.
      *
      * @return {@code true} se criou
      */
     @Transactional
     public boolean criarSeAusente(String keycloakSub, String nome, String email) {
+        titularExcluidoRepository.travar(keycloakSub);
+        if (titularExcluidoRepository.contem(keycloakSub)) {
+            log.info("user.created de um titular que pediu a exclusão dos dados, familiar não criado");
+            return false;
+        }
         if (familiarRepository.existsByKeycloakSub(keycloakSub)) {
             log.info("Familiar do sub {} já existe, evento ignorado", keycloakSub);
             return false;
