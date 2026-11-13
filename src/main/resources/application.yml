@@ -28,10 +28,6 @@ spring:
           initial-interval: 1s
           multiplier: 2
 
-  data:
-    redis:
-      repositories:
-        enabled: false
   # Resource server: só valida o access token emitido pelo Keycloak (realm seniorinsight).
   # O JWKS é descoberto pelo issuer; para usar outro endereço (ex.: rede interna do Docker),
   # defina SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWKSETURI.
