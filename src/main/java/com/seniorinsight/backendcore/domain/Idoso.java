@@ -162,6 +162,11 @@ public class Idoso {
         this.nomeCompleto = nomeCompleto;
     }
 
+    /** Primeira palavra do nome completo: o que se mostra a quem ainda não é da rede e nos avisos. */
+    public String primeiroNome() {
+        return nomeCompleto.trim().split("\\s+")[0];
+    }
+
     public LocalDate getDataNascimento() {
         return dataNascimento;
     }

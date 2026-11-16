@@ -12,12 +12,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.seniorinsight.backendcore.service.ExclusaoTitularService;
 import com.seniorinsight.backendcore.service.ProvisionarFamiliarService;
 
 /**
  * Consome a {@code care.q} (envelope CloudEvents, ver si-contracts/events). Trata {@code user.created}: perfil
- * FAMILIAR vira um Familiar; perfil IDOSO não é criado por aqui (o idoso entra pelo cadastro do familiar). Evento
- * inválido lança {@link AmqpRejectAndDontRequeueException} e, depois das tentativas, vai para a {@code care.dlq}.
+ * FAMILIAR vira um Familiar; perfil IDOSO não é criado por aqui (o idoso entra pelo cadastro do familiar). Trata
+ * {@code lgpd.erasure.requested}: valida o envelope e entrega o pedido ao caso de uso de exclusão. Evento inválido
+ * lança {@link AmqpRejectAndDontRequeueException} e, depois das tentativas, vai para a {@code care.dlq}.
  */
 @Component
 class ConsumidorCare extends ConsumidorIdempotente {
@@ -31,12 +33,17 @@ class ConsumidorCare extends ConsumidorIdempotente {
 
     private final ObjectMapper objectMapper;
     private final ProvisionarFamiliarService provisionarFamiliar;
+    private final LeitorPedidoExclusao leitorPedidoExclusao;
+    private final ExclusaoTitularService exclusaoTitular;
 
     ConsumidorCare(RegistroEventosProcessados registro, TransactionTemplate transacao, ObjectMapper objectMapper,
-                   ProvisionarFamiliarService provisionarFamiliar) {
+                   ProvisionarFamiliarService provisionarFamiliar, LeitorPedidoExclusao leitorPedidoExclusao,
+                   ExclusaoTitularService exclusaoTitular) {
         super(registro, transacao);
         this.objectMapper = objectMapper;
         this.provisionarFamiliar = provisionarFamiliar;
+        this.leitorPedidoExclusao = leitorPedidoExclusao;
+        this.exclusaoTitular = exclusaoTitular;
     }
 
     @RabbitListener(queues = MensageriaConfig.FILA)
@@ -53,11 +60,13 @@ class ConsumidorCare extends ConsumidorIdempotente {
     protected void tratar(String mensagemId, Message mensagem) {
         JsonNode envelope = lerEnvelope(mensagem);
         String tipo = texto(envelope, "type");
-        if (!USER_CREATED.equals(tipo)) {
+        if (USER_CREATED.equals(tipo)) {
+            tratarUserCreated(mensagemId, envelope.path("data"));
+        } else if (LeitorPedidoExclusao.TIPO.equals(tipo)) {
+            exclusaoTitular.tratar(leitorPedidoExclusao.ler(envelope, mensagemId));
+        } else {
             log.info("Evento {} do tipo {} sem tratamento no care, ignorado", mensagemId, tipo);
-            return;
         }
-        tratarUserCreated(mensagemId, envelope.path("data"));
     }
 
     private void tratarUserCreated(String mensagemId, JsonNode data) {

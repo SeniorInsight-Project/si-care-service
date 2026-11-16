@@ -23,10 +23,6 @@ spring:
           multiplier: 2
         # Os testes de unidade e de web não sobem broker; os de integração ligam o listener.
         auto-startup: false
-  data:
-    redis:
-      repositories:
-        enabled: false
   security:
     oauth2:
       resourceserver:
@@ -35,6 +31,14 @@ spring:
           issuer-uri: http://localhost:8180/realms/seniorinsight
 
 care:
+  seguranca:
+    papel-servico: servico-interno
+  exclusao:
+    aviso-rede:
+      retencao: P7D
+      intervalo-limpeza: PT1H
+  mensageria:
+    eventos-consumidos: user.created,lgpd.erasure.requested
   outbox:
     relay:
       intervalo: PT1S

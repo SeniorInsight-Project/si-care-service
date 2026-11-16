@@ -15,14 +15,43 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.seniorinsight.backendcore.domain.PedidoExclusao;
+import com.seniorinsight.backendcore.domain.TipoTitular;
+import com.seniorinsight.backendcore.service.ExclusaoTitularService;
 import com.seniorinsight.backendcore.service.ProvisionarFamiliarService;
 
-/** Regras de leitura do user.created, sem broker nem banco. */
+/** Regras de leitura do user.created e do lgpd.erasure.requested, sem broker nem banco. */
 class ConsumidorCareTest {
 
     private final ProvisionarFamiliarService servico = mock(ProvisionarFamiliarService.class);
+    private final ExclusaoTitularService exclusao = mock(ExclusaoTitularService.class);
     private final ConsumidorCare consumidor = new ConsumidorCare(mock(RegistroEventosProcessados.class), null,
-            new ObjectMapper(), servico);
+            new ObjectMapper(), servico, new LeitorPedidoExclusao(), exclusao);
+
+    @Test
+    void exclusaoSolicitadaChamaOCasoDeUsoComOPedidoDoEnvelope() {
+        UUID mensagem = UUID.randomUUID();
+        UUID protocolo = UUID.randomUUID();
+        UUID titular = UUID.randomUUID();
+
+        consumidor.tratar(mensagem.toString(),
+                msg(EventosDeTeste.exclusaoSolicitada(mensagem, protocolo, "FAMILIAR", titular, "sub-9")));
+
+        verify(exclusao).tratar(new PedidoExclusao(protocolo, TipoTitular.FAMILIAR, titular, "sub-9"));
+        verify(servico, never()).criarSeAusente(any(), any(), any());
+    }
+
+    @Test
+    void exclusaoComEnvelopeInvalidoNaoChegaAoCasoDeUso() {
+        UUID mensagem = UUID.randomUUID();
+        String corpo = EventosDeTeste
+                .exclusaoSolicitada(mensagem, UUID.randomUUID(), "IDOSO", UUID.randomUUID(), "s")
+                .replace("/report-service", "/care-service");
+
+        assertThatThrownBy(() -> consumidor.tratar(mensagem.toString(), msg(corpo)))
+                .isInstanceOf(AmqpRejectAndDontRequeueException.class);
+        verify(exclusao, never()).tratar(any());
+    }
 
     @Test
     void familiarChamaOServicoComSubNomeEEmail() {
