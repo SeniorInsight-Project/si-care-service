@@ -23,10 +23,6 @@ spring:
           multiplier: 2
         # Os testes de unidade e de web não sobem broker; os de integração ligam o listener.
         auto-startup: false
-  data:
-    redis:
-      repositories:
-        enabled: false
   security:
     oauth2:
       resourceserver:

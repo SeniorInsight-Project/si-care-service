@@ -18,21 +18,6 @@ services:
       retries: 5
       start_period: 10s
 
-  redis:
-    image: redis:7-alpine
-    container_name: seniorinsight-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-      start_period: 5s
-
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     container_name: seniorinsight-rabbitmq
@@ -59,8 +44,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
@@ -71,8 +54,6 @@ services:
       DB_NAME: ${DB_NAME:-seniorinsight}
       DB_USERNAME: ${DB_USERNAME:-seniorinsight}
       DB_PASSWORD: ${DB_PASSWORD:-seniorinsight}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
@@ -90,4 +71,3 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
