@@ -3,6 +3,8 @@ package com.seniorinsight.backendcore.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -37,12 +39,17 @@ class RedeProtecaoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
     void comVinculo() throws Exception {
         Idoso idoso = idosoComRede();
 
-        for (JwtRequestPostProcessor quem : List.of(token(ADMIN), token(APOIO), token(MEDICO))) {
+        for (JwtRequestPostProcessor quem : List.of(token(ADMIN))) {
             mockMvc.perform(post(CONVITES, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
                             .content(CONVITE))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.idosoId").value(idoso.getId().toString()))
                     .andExpect(jsonPath("$.status").value("PENDENTE"));
+        }
+
+        for (JwtRequestPostProcessor quem : List.of(token(APOIO), token(MEDICO))) {
+            mockMvc.perform(post(CONVITES, idoso.getId()).with(quem).contentType(MediaType.APPLICATION_JSON)
+                            .content(CONVITE)).andExpect(status().isForbidden());
         }
 
         for (JwtRequestPostProcessor quem : List.of(token(ADMIN), token(APOIO), token(MEDICO),
@@ -55,6 +62,27 @@ class RedeProtecaoIntegracaoTest extends AcessoPorIdosoIntegracaoBase {
         mockMvc.perform(post(CONVITES, idoso.getId()).with(tokenDoIdoso(idoso.getId()))
                         .contentType(MediaType.APPLICATION_JSON).content(CONVITE))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void administradorListaEditaECancelaConvite() throws Exception {
+        Idoso idoso = idosoComRede();
+        String retorno = mockMvc.perform(post(CONVITES, idoso.getId()).with(token(ADMIN))
+                        .contentType(MediaType.APPLICATION_JSON).content(CONVITE))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String id = json.readTree(retorno).get("id").asText();
+        mockMvc.perform(get("/api/v1/idosos/{id}/convites/pendentes", idoso.getId()).with(token(ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$[0].id").value(id));
+        mockMvc.perform(patch("/api/v1/convites/{id}", id).with(token(APOIO))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"papelAcesso\":\"OBSERVADOR\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/v1/convites/{id}", id).with(token(ADMIN))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"papelAcesso\":\"OBSERVADOR\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.papelAcessoSugerido").value("OBSERVADOR"));
+        mockMvc.perform(delete("/api/v1/convites/{id}", id).with(token(ADMIN))).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/api/v1/convites/{id}", id).with(token(ADMIN))).andExpect(status().isConflict());
+        mockMvc.perform(get("/api/v1/idosos/{id}/convites/pendentes", idoso.getId()).with(token(ADMIN)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
