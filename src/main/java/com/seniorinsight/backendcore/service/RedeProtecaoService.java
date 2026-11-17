@@ -3,6 +3,9 @@ package com.seniorinsight.backendcore.service;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.Comparator;
+import java.util.Set;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -91,7 +94,7 @@ public class RedeProtecaoService {
         UsuarioAutenticado usuario = resolverUsuarioAutenticado(usuarioAutenticado);
 
         // Só quem já está na rede do idoso (Familiar com vínculo) ou o médico que o acompanha emite convite
-        Idoso idoso = acessoIdosoService.exigirVinculo(usuario, idosoId);
+        Idoso idoso = acessoIdosoService.exigirAdministrador(usuario, idosoId);
 
         // RN-012: o Administrador é único por idoso e nasce com o cadastro; convite não cria outro
         if (PapelAcesso.ADMINISTRADOR.equalsIgnoreCase(request.papelAcesso().trim())) {
@@ -333,6 +336,83 @@ public class RedeProtecaoService {
                         v.getCriadoEm()
                 ))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ConviteRedeResponseDTO> listarPendentes(UUID idosoId, UsuarioAutenticado usuario) {
+        acessoIdosoService.exigirAdministrador(resolverUsuarioAutenticado(usuario), idosoId);
+        return conviteRedeRepository.findByIdosoIdAndStatus(idosoId, StatusConvite.PENDENTE).stream()
+                .filter(ConviteRede::isPendente)
+                .sorted(Comparator.comparing(ConviteRede::getCriadoEm).reversed())
+                .map(this::respostaConvite).toList();
+    }
+
+    @Transactional
+    public ConviteRedeResponseDTO editarConvite(UUID id, JsonNode dados, UsuarioAutenticado usuario) {
+        ConviteRede convite = conviteGerenciavel(id, usuario);
+        if (dados == null || !dados.isObject() || dados.isEmpty()) {
+            throw new IllegalArgumentException("Informe ao menos um campo para editar.");
+        }
+        var nomes = dados.fieldNames();
+        Set<String> permitidos = Set.of("email", "papelAcesso", "grauParentesco", "mensagemPersonalizada");
+        while (nomes.hasNext()) {
+            if (!permitidos.contains(nomes.next())) throw new IllegalArgumentException("Campo desconhecido.");
+        }
+        if (dados.has("email")) {
+            JsonNode email = dados.get("email");
+            if (!email.isTextual() || email.asText().isBlank() || email.asText().length() > 255
+                    || !email.asText().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                throw new IllegalArgumentException("E-mail inválido.");
+            }
+            String valor = email.asText().trim().toLowerCase(java.util.Locale.ROOT);
+            conviteRedeRepository.findByIdosoIdAndEmailAndStatus(convite.getIdoso().getId(), valor, StatusConvite.PENDENTE)
+                    .filter(outro -> !outro.getId().equals(id) && outro.isPendente())
+                    .ifPresent(outro -> { throw new VinculoJaExistenteException("Já existe convite pendente para este e-mail."); });
+            familiarRepository.findByEmailIgnoreCase(valor).ifPresent(familiar -> {
+                if (vinculoRedeRepository.existsByFamiliarAndIdoso(familiar, convite.getIdoso()))
+                    throw new VinculoJaExistenteException("Familiar já pertence à rede.");
+            });
+            convite.setEmail(valor);
+        }
+        if (dados.has("papelAcesso")) {
+            JsonNode papel = dados.get("papelAcesso");
+            if (!papel.isTextual() || !Set.of("CUIDADOR", "OBSERVADOR", "MEDICO").contains(papel.asText()))
+                throw new IllegalArgumentException("Papel de acesso inválido.");
+            convite.setPapelAcessoSugerido(papel.asText());
+        }
+        if (dados.has("grauParentesco")) {
+            JsonNode grau = dados.get("grauParentesco");
+            if (!grau.isNull() && (!grau.isTextual() || grau.asText().length() > 50))
+                throw new IllegalArgumentException("Grau de parentesco inválido.");
+            convite.setGrauParentescoSugerido(grau.isNull() ? null : grau.asText());
+        }
+        if (dados.has("mensagemPersonalizada")) {
+            JsonNode mensagem = dados.get("mensagemPersonalizada");
+            if (!mensagem.isNull() && (!mensagem.isTextual() || mensagem.asText().length() > 500))
+                throw new IllegalArgumentException("Mensagem inválida.");
+        }
+        return respostaConvite(conviteRedeRepository.save(convite));
+    }
+
+    @Transactional
+    public void cancelarConvite(UUID id, UsuarioAutenticado usuario) {
+        ConviteRede convite = conviteGerenciavel(id, usuario);
+        convite.cancelar();
+        conviteRedeRepository.save(convite);
+    }
+
+    private ConviteRede conviteGerenciavel(UUID id, UsuarioAutenticado usuario) {
+        ConviteRede convite = conviteRedeRepository.findById(id)
+                .orElseThrow(() -> new ConviteNaoEncontradoException("Convite não encontrado"));
+        acessoIdosoService.exigirAdministrador(resolverUsuarioAutenticado(usuario), convite.getIdoso().getId());
+        if (!convite.isPendente()) throw new ConviteJaAceitoException("O convite não está pendente.");
+        return convite;
+    }
+
+    private ConviteRedeResponseDTO respostaConvite(ConviteRede c) {
+        return new ConviteRedeResponseDTO(c.getId(), c.getIdoso().getId(), c.getIdoso().getNomeCompleto(),
+                c.getEmail(), c.getToken(), c.getPapelAcessoSugerido(), c.getGrauParentescoSugerido(),
+                c.getStatus(), c.getDataExpiracao(), c.getCriadoEm(), null);
     }
 
     /**
