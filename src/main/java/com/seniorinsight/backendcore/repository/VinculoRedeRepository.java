@@ -30,5 +30,7 @@ public interface VinculoRedeRepository extends JpaRepository<VinculoRede, UUID> 
 
     Optional<VinculoRede> findByFamiliar_KeycloakSubAndIdoso_Id(String keycloakSub, UUID idosoId);
 
+    boolean existsByFamiliarAndPapelAcesso(Familiar familiar, String papelAcesso);
+
     long countByIdoso_IdAndPapelAcesso(UUID idosoId, String papelAcesso);
 }
