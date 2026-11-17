@@ -110,7 +110,7 @@ class RedeProtecaoServiceTest {
     void deveGerarConviteComSucesso() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", "Olá!");
 
-        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(conviteRedeRepository.findByIdosoIdAndEmailAndStatus(idosoId, "neta@seniorinsight.com", StatusConvite.PENDENTE))
                 .thenReturn(Optional.empty());
 
@@ -145,7 +145,7 @@ class RedeProtecaoServiceTest {
     void deveLancarIdosoNaoEncontradoAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId)).thenThrow(new IdosoNaoEncontradoException(idosoId));
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
                 .isInstanceOf(IdosoNaoEncontradoException.class);
@@ -156,7 +156,7 @@ class RedeProtecaoServiceTest {
     void deveLancarVinculoJaExistenteAoGerarConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
 
-        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId)).thenReturn(idoso);
         when(familiarRepository.findByEmailIgnoreCase("neta@seniorinsight.com")).thenReturn(Optional.of(familiarConvidado));
         when(vinculoRedeRepository.existsByFamiliarAndIdoso(familiarConvidado, idoso)).thenReturn(true);
 
@@ -280,7 +280,7 @@ class RedeProtecaoServiceTest {
     @DisplayName("Sem vínculo com o idoso, gerar convite é negado: nada é gravado e nenhum e-mail é simulado")
     void semVinculoNaoGeraConvite() {
         ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", "FAMILIAR", "Neta", null);
-        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId))
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId))
                 .thenThrow(new PerfilNaoAutorizadoException("Você não faz parte da rede de proteção deste idoso."));
 
         assertThatThrownBy(() -> redeProtecaoService.gerarConvite(idosoId, request, usuarioFamiliar))
@@ -305,7 +305,7 @@ class RedeProtecaoServiceTest {
     @Test
     @DisplayName("Convite com papel Administrador é recusado (RN-012), em qualquer caixa, e nada é gravado")
     void conviteNaoConcedeAdministrador() {
-        when(acessoIdosoService.exigirVinculo(usuarioFamiliar, idosoId)).thenReturn(idoso);
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId)).thenReturn(idoso);
 
         for (String papel : List.of("ADMINISTRADOR", "administrador", " Administrador ")) {
             ConviteRedeRequestDTO request = new ConviteRedeRequestDTO("neta@seniorinsight.com", papel, "Neta", null);
@@ -433,5 +433,51 @@ class RedeProtecaoServiceTest {
 
         verifyNoInteractions(acessoIdosoService);
         verify(familiarRepository, never()).findByKeycloakSub(usuarioConvidado.keycloakSub());
+    }
+
+    @Test
+    void listaApenasPendentesNaoExpiradosEmOrdemDecrescente() {
+        Instant agora = Instant.now();
+        ConviteRede antigo = convitePendente(agora.minusSeconds(20), agora.plusSeconds(300));
+        ConviteRede recente = convitePendente(agora.minusSeconds(10), agora.plusSeconds(300));
+        ConviteRede expirado = convitePendente(agora.minusSeconds(5), agora.minusSeconds(1));
+        when(conviteRedeRepository.findByIdosoIdAndStatus(idosoId, StatusConvite.PENDENTE))
+                .thenReturn(List.of(antigo, expirado, recente));
+        assertThat(redeProtecaoService.listarPendentes(idosoId, usuarioFamiliar))
+                .extracting(ConviteRedeResponseDTO::id).containsExactly(recente.getId(), antigo.getId());
+        verify(acessoIdosoService).exigirAdministrador(usuarioFamiliar, idosoId);
+    }
+
+    @Test
+    void editaSemRenovarValidadeECancela() throws Exception {
+        ConviteRede convite = convitePendente(Instant.now(), Instant.now().plusSeconds(300));
+        Instant validade = convite.getDataExpiracao();
+        when(conviteRedeRepository.findById(convite.getId())).thenReturn(Optional.of(convite));
+        when(conviteRedeRepository.save(convite)).thenReturn(convite);
+        var dados = new com.fasterxml.jackson.databind.ObjectMapper().readTree("{\"papelAcesso\":\"OBSERVADOR\"}");
+        assertThat(redeProtecaoService.editarConvite(convite.getId(), dados, usuarioFamiliar).papelAcessoSugerido())
+                .isEqualTo("OBSERVADOR");
+        assertThat(convite.getDataExpiracao()).isEqualTo(validade);
+        redeProtecaoService.cancelarConvite(convite.getId(), usuarioFamiliar);
+        assertThat(convite.getStatus()).isEqualTo(StatusConvite.CANCELADO);
+        assertThatThrownBy(() -> redeProtecaoService.cancelarConvite(convite.getId(), usuarioFamiliar))
+                .isInstanceOf(ConviteJaAceitoException.class);
+    }
+
+    @Test
+    void impedeGestaoPorNaoAdministrador() {
+        ConviteRede convite = convitePendente(Instant.now(), Instant.now().plusSeconds(300));
+        when(conviteRedeRepository.findById(convite.getId())).thenReturn(Optional.of(convite));
+        when(acessoIdosoService.exigirAdministrador(usuarioFamiliar, idosoId))
+                .thenThrow(new PerfilNaoAutorizadoException("Acesso negado"));
+        assertThatThrownBy(() -> redeProtecaoService.cancelarConvite(convite.getId(), usuarioFamiliar))
+                .isInstanceOf(PerfilNaoAutorizadoException.class);
+        verify(conviteRedeRepository, never()).save(any());
+    }
+
+    private ConviteRede convitePendente(Instant criado, Instant validade) {
+        return ConviteRede.builder().id(UUID.randomUUID()).idoso(idoso).email("alguem@example.com")
+                .token(UUID.randomUUID().toString()).papelAcessoSugerido("CUIDADOR")
+                .status(StatusConvite.PENDENTE).criadoEm(criado).dataExpiracao(validade).build();
     }
 }

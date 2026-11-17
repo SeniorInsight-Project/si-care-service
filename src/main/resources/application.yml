@@ -70,6 +70,12 @@ springdoc:
     operationsSorter: method
 
 care:
+  billing:
+    token-url: ${CARE_BILLING_TOKEN_URL:}
+    client-id: ${CARE_BILLING_CLIENT_ID:}
+    client-secret: ${CARE_BILLING_CLIENT_SECRET:}
+    base-url: ${CARE_BILLING_BASE_URL:}
+    retry-interval: ${CARE_BILLING_RETRY_INTERVAL:PT30S}
   seguranca:
     # Role de realm do Keycloak que as rotas /internal/** exigem (conta de serviço dos outros serviços).
     papel-servico: ${CARE_PAPEL_SERVICO:servico-interno}

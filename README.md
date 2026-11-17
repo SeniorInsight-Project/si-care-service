@@ -176,3 +176,9 @@ SPRING_PROFILES_ACTIVE=prod
 KEYCLOAK_ISSUER_URI=https://<host-do-keycloak>/realms/seniorinsight
 ```
 *(Variáveis como `DATABASE_URL`, `JDBC_DATABASE_URL`, `REDIS_URL` e `PORT` são injetadas automaticamente pelos add-ons e dynos do Heroku).*
+
+## Trial do primeiro idoso
+
+O cadastro do primeiro idoso administrado por um familiar grava um comando na outbox na mesma transação. Um processador separado solicita um token `client_credentials` com o escopo `billing.trial.write` e chama o billing; falhas mantêm o comando pendente para nova tentativa. O endpoint do billing é idempotente, inclusive quando a resposta se perde após o processamento.
+
+Configure `CARE_BILLING_TOKEN_URL`, `CARE_BILLING_CLIENT_ID`, `CARE_BILLING_CLIENT_SECRET` e `CARE_BILLING_BASE_URL`. O client deve ser `care-service` no realm e ter o scope `billing.trial.write`. `CARE_BILLING_RETRY_INTERVAL` (padrão `PT30S`) controla o intervalo entre tentativas. Sem configuração, os pedidos permanecem na outbox até que ela seja fornecida.

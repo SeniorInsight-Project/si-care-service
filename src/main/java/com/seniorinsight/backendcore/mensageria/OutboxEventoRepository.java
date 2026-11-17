@@ -17,9 +17,16 @@ interface OutboxEventoRepository extends JpaRepository<OutboxEvento, UUID> {
             SELECT *
               FROM outbox_evento
              WHERE publicado_em IS NULL
+               AND tipo_evento <> 'billing.trial.requested'
              ORDER BY criado_em
              LIMIT :limite
                FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     List<OutboxEvento> travarPendentes(@Param("limite") int limite);
+    @Query(value = """
+            SELECT * FROM outbox_evento
+             WHERE publicado_em IS NULL AND tipo_evento = 'billing.trial.requested'
+             ORDER BY criado_em LIMIT :limite FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    List<OutboxEvento> travarTrials(@Param("limite") int limite);
 }

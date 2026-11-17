@@ -1,6 +1,9 @@
 package com.seniorinsight.backendcore.controller;
 
 import java.util.List;
+import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -167,6 +170,23 @@ public class RedeProtecaoController {
             @Parameter(hidden = true) UsuarioAutenticado usuarioAutenticado) {
         AceiteConviteResponseDTO response = redeProtecaoService.aceitarConvite(token, usuarioAutenticado);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/idosos/{idosoId}/convites/pendentes")
+    public List<ConviteRedeResponseDTO> listarPendentes(@PathVariable UUID idosoId, UsuarioAutenticado usuario) {
+        return redeProtecaoService.listarPendentes(idosoId, usuario);
+    }
+
+    @PatchMapping("/convites/{conviteId}")
+    public ConviteRedeResponseDTO editarConvite(@PathVariable UUID conviteId, @RequestBody JsonNode dados,
+                                                UsuarioAutenticado usuario) {
+        return redeProtecaoService.editarConvite(conviteId, dados, usuario);
+    }
+
+    @DeleteMapping("/convites/{conviteId}")
+    public ResponseEntity<Void> cancelarConvite(@PathVariable UUID conviteId, UsuarioAutenticado usuario) {
+        redeProtecaoService.cancelarConvite(conviteId, usuario);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(

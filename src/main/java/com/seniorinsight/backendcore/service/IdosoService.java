@@ -56,27 +56,32 @@ public class IdosoService {
     private final AuditoriaIdosoRepository auditoriaRepository;
     private final AcessoIdosoService acessoIdosoService;
     private final Clock clock;
+    private final com.seniorinsight.backendcore.mensageria.TrialOutbox trialOutbox;
 
     public IdosoService(IdosoRepository idosoRepository,
                         FamiliarRepository familiarRepository,
                         VinculoRedeRepository vinculoRedeRepository,
                         AuditoriaIdosoRepository auditoriaRepository,
                         AcessoIdosoService acessoIdosoService,
-                        Clock clock) {
+                        Clock clock,
+                        com.seniorinsight.backendcore.mensageria.TrialOutbox trialOutbox) {
         this.idosoRepository = idosoRepository;
         this.familiarRepository = familiarRepository;
         this.vinculoRedeRepository = vinculoRedeRepository;
         this.auditoriaRepository = auditoriaRepository;
         this.acessoIdosoService = acessoIdosoService;
         this.clock = clock;
+        this.trialOutbox = trialOutbox;
     }
 
     /** Cria o idoso e o vínculo de Administrador do autor, na mesma transação. */
     @Transactional
     public IdosoResponseDTO cadastrar(UsuarioAutenticado usuario, IdosoRequestDTO request) {
-        Familiar autor = familiarRepository.findByKeycloakSub(usuario.keycloakSub())
+        Familiar autor = familiarRepository.travarPorSub(usuario.keycloakSub())
                 .orElseThrow(() -> new PerfilNaoAutorizadoException(
                         "Apenas um Familiar pode cadastrar um idoso."));
+
+        boolean primeiroIdoso = !vinculoRedeRepository.existsByFamiliarAndPapelAcesso(autor, PapelAcesso.ADMINISTRADOR);
 
         String cpf = normalizar(request.cpf());
         if (cpf != null && idosoRepository.existsByCpf(cpf)) {
@@ -97,6 +102,8 @@ public class IdosoService {
                 .grauParentesco(PapelAcesso.PARENTESCO_NAO_INFORMADO)
                 .papelAcesso(PapelAcesso.ADMINISTRADOR)
                 .build());
+
+        if (primeiroIdoso) trialOutbox.registrar(autor.getId(), usuario.keycloakSub());
 
         log.info("Idoso {} cadastrado; Administrador: familiar {}", idoso.getId(), autor.getId());
         return resposta(idoso);
